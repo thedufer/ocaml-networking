@@ -1,0 +1,7 @@
+(jbuild_version 1)
+
+(library (
+  (name protocol)
+  (libraries (core async))
+  (preprocess (pps (ppx_jane)))
+  ))

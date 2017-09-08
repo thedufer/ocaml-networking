@@ -2,5 +2,5 @@ open Core
 
 type t = {
   port : int;
-  bytes : char list;
+  data : char list;
 } [@@deriving bin_io]

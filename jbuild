@@ -1,7 +1,7 @@
 (jbuild_version 1)
 
 (executables (
-  (names (client server))
+  (names (client nodes server))
   (libraries (core async protocol))
   (preprocess (pps (ppx_jane)))
   ))

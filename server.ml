@@ -3,21 +3,38 @@ open! Async
 open Protocol
 open Deferred.Or_error.Let_syntax
 
-let update state ~f =
+let update (state, _, _) ~f =
   let%bind new_state = Deferred.return (f !state) in
   state := new_state;
   State.save !state
 
+let register_connection ((state : State.t ref), (r_bag, g_w), conn) id =
+  (* TODO: make sure [id] isn't already connected *)
+  let (ret_pipe, w) = Pipe.create () in
+  let%bind (r, _) =
+    Rpcs.Register_response.dispatch conn ()
+    |> Deferred.map ~f:Or_error.join
+  in
+  Pipe.transfer r g_w ~f:(fun msg -> (id, msg))
+  |> don't_wait_for;
+  (* These transfers don't play well together. *)
+  let elt = Bag.add r_bag (w, id) in
+  Pipe.closed w
+  |> Deferred.map ~f:(fun () -> Bag.remove r_bag elt)
+  |> don't_wait_for;
+  return ret_pipe
+
 let implementations =
   let implementations =
-    [ Rpcs.Add_node.implement (fun (state : State.t ref) node ->
+    [ Rpcs.Add_node.implement (fun state node ->
           update state ~f:(fun s -> State.add_node s node));
-      Rpcs.Drop_node.implement (fun (state : State.t ref) node_id ->
+      Rpcs.Drop_node.implement (fun state node_id ->
           update state ~f:(fun s -> State.drop_node s node_id));
-      Rpcs.Add_connection.implement (fun (state : State.t ref) connection ->
+      Rpcs.Add_connection.implement (fun state connection ->
           update state ~f:(fun s -> State.add_connection s connection));
-      Rpcs.Drop_connection.implement (fun (state : State.t ref) connection ->
+      Rpcs.Drop_connection.implement (fun state connection ->
           update state ~f:(fun s -> State.drop_connection s connection));
+      Rpcs.Register.implement register_connection;
     ]
   in
   Rpc.Implementations.create_exn ~implementations ~on_unknown_rpc:`Close_connection
@@ -32,10 +49,27 @@ let run_server_command =
         let open Deferred.Or_error.Let_syntax in
         let%bind state = State.load () in
         let state_ref = ref state in
+        let (g_r, g_w) = Pipe.create () in
+        let r_bag = Bag.create () in
+        Pipe.iter_without_pushback g_r ~f:(fun (from_id, (from_msg : Message.t)) ->
+            List.find (!state_ref).connections ~f:(fun c -> Connection.uses_port c (from_id, from_msg.port))
+            |> Option.iter ~f:(fun connection ->
+                let (to_id, to_port) =
+                  if Node.Id.equal connection.node1 from_id then
+                    (connection.node2, connection.port2)
+                  else
+                    (connection.node1, connection.port1)
+                in
+                let to_msg = {from_msg with port = to_port} in
+                Bag.iter r_bag ~f:(fun (w_pipe, id) ->
+                    if Node.Id.equal id to_id then
+                      Pipe.write_if_open w_pipe to_msg
+                      |> don't_wait_for)))
+        |> don't_wait_for;
         let where_to_listen = Tcp.on_port state.server_port in
         let%bind server =
           Rpc.Connection.serve ~implementations () ~where_to_listen
-            ~initial_connection_state:(fun _ _ -> state_ref)
+            ~initial_connection_state:(fun _ conn -> (state_ref, (r_bag, g_w), conn))
           |> Deferred.ok
         in
         Tcp.Server.close_finished server

@@ -8,19 +8,30 @@ let update (state, _, _) ~f =
   state := new_state;
   State.save !state
 
-let register_connection ((state : State.t ref), (r_bag, g_w), conn) id =
-  (* TODO: make sure [id] isn't already connected *)
+let register_connection ((state : State.t ref), w_bag, conn) id =
+  let%bind () =
+    if Bag.exists w_bag ~f:(fun (_, id') -> Node.Id.equal id id') then
+      Deferred.Or_error.error_s [%message "already connected" (id : Node.Id.t)]
+    else
+      return ()
+  in
   let (ret_pipe, w) = Pipe.create () in
   let%bind (r, _) =
     Rpcs.Register_response.dispatch conn ()
     |> Deferred.map ~f:Or_error.join
   in
-  Pipe.transfer r g_w ~f:(fun msg -> (id, msg))
-  |> don't_wait_for;
-  (* These transfers don't play well together. *)
-  let elt = Bag.add r_bag (w, id) in
+  let elt = Bag.add w_bag (w, id) in
   Pipe.closed w
-  |> Deferred.map ~f:(fun () -> Bag.remove r_bag elt)
+  |> Deferred.map ~f:(fun () -> Bag.remove w_bag elt)
+  |> don't_wait_for;
+  Pipe.iter_without_pushback r ~f:(fun (from_msg : Message.t) ->
+      Connection.get_connected_port (!state).connections (id, from_msg.port)
+      |> Option.iter  ~f:(fun (to_id, to_port) ->
+          let to_msg = {from_msg with port = to_port} in
+          Bag.iter w_bag ~f:(fun (w_pipe, id) ->
+              if Node.Id.equal id to_id then
+                Pipe.write_if_open w_pipe to_msg
+                |> don't_wait_for)))
   |> don't_wait_for;
   return ret_pipe
 
@@ -49,27 +60,11 @@ let run_server_command =
         let open Deferred.Or_error.Let_syntax in
         let%bind state = State.load () in
         let state_ref = ref state in
-        let (g_r, g_w) = Pipe.create () in
-        let r_bag = Bag.create () in
-        Pipe.iter_without_pushback g_r ~f:(fun (from_id, (from_msg : Message.t)) ->
-            List.find (!state_ref).connections ~f:(fun c -> Connection.uses_port c (from_id, from_msg.port))
-            |> Option.iter ~f:(fun connection ->
-                let (to_id, to_port) =
-                  if Node.Id.equal connection.node1 from_id then
-                    (connection.node2, connection.port2)
-                  else
-                    (connection.node1, connection.port1)
-                in
-                let to_msg = {from_msg with port = to_port} in
-                Bag.iter r_bag ~f:(fun (w_pipe, id) ->
-                    if Node.Id.equal id to_id then
-                      Pipe.write_if_open w_pipe to_msg
-                      |> don't_wait_for)))
-        |> don't_wait_for;
+        let w_bag = Bag.create () in
         let where_to_listen = Tcp.on_port state.server_port in
         let%bind server =
           Rpc.Connection.serve ~implementations () ~where_to_listen
-            ~initial_connection_state:(fun _ conn -> (state_ref, (r_bag, g_w), conn))
+            ~initial_connection_state:(fun _ conn -> (state_ref, w_bag, conn))
           |> Deferred.ok
         in
         Tcp.Server.close_finished server

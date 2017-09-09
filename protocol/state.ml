@@ -9,8 +9,7 @@ type t = {
 
 let init ~server_port = {server_port; nodes = []; connections = []}
 
-let location () =
-  Filename.temp_dir_name ^/ "sdn-local.state"
+let location () = Unix.getenv_exn "HOME" ^/ "sdn-local.state"
 
 let save t =
   let sexp = sexp_of_t t in

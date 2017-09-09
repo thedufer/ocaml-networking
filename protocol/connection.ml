@@ -15,3 +15,11 @@ let uses_port t (id, port) =
    Int.equal port t.port2)
 
 let equal t1 t2 = uses_port t1 (t2.node1, t2.port1) && uses_port t1 (t2.node2, t2.port2)
+
+let get_connected_port ts (id, port) =
+  List.find ts ~f:(fun t -> uses_port t (id, port))
+  |> Option.map ~f:(fun connection ->
+      if Node.Id.equal connection.node1 id then
+        (connection.node2, connection.port2)
+      else
+        (connection.node1, connection.port1))

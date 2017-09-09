@@ -69,6 +69,7 @@ let add_connection_command =
             port1;
             node2 = id2;
             port2;
+            type_ = Perfect;
           }
         in
         let%bind conn =
@@ -104,6 +105,7 @@ let drop_connection_command =
             port1;
             node2 = id2;
             port2;
+            type_ = Perfect;
           }
         in
         let%bind conn =

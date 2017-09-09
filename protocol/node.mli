@@ -1,7 +1,7 @@
 open! Core
 
 module Id : sig
-  type t [@@deriving bin_io, sexp]
+  type t [@@deriving bin_io, compare, sexp]
 
   include Stringable with type t := t
 

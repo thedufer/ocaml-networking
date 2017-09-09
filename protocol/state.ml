@@ -82,10 +82,10 @@ let add_connection t (connection : Connection.t) =
   Ok {t with connections}
 
 let drop_connection t connection =
-  if List.mem ~equal:Connection.equal t.connections connection then
+  if List.mem ~equal:Connection.same_ports t.connections connection then
     let connections =
       List.filter t.connections ~f:(fun connection' ->
-          not (Connection.equal connection connection'))
+          not (Connection.same_ports connection connection'))
     in
     Ok {t with connections}
   else

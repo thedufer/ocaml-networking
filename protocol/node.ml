@@ -1,7 +1,7 @@
 open! Core
 
 module Id = struct
-  type t = string [@@deriving bin_io, sexp]
+  type t = string [@@deriving bin_io, compare, sexp]
 
   let of_string x = x
   let to_string x = x

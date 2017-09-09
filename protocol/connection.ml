@@ -4,13 +4,20 @@ module Type = struct
   type t =
     | Perfect
     | Changed of int
+    | Skewed of bool list ref
   [@@deriving bin_io, compare, sexp]
+
+  let skew_start () =
+    List.init (Random.int 8) ~f:(fun _ -> Random.bool ())
+    |> ref
 
   let param =
     let open Command.Param in
     choose_one ~if_nothing_chosen:(`Default_to Perfect) [
       (flag "changed" (optional int) ~doc:"N bits flipped per kilobyte"
        |> map ~f:(Option.map ~f:(fun n -> Changed n)));
+      (flag "skewed" no_arg ~doc:" skewed bytes"
+       |> map ~f:(fun b -> Option.some_if b (Skewed (skew_start ()))));
     ]
 
   let char_to_bools c =
@@ -34,6 +41,12 @@ module Type = struct
               then not b
               else b)
           |> bools_to_char)
+    | Skewed old_bits ->
+      List.map data ~f:(fun c ->
+          let bits = !old_bits @ char_to_bools c in
+          let (bits_to_pass, bits_to_store) = List.split_n bits 8 in
+          old_bits := bits_to_store;
+          bools_to_char bits_to_pass)
 end
 
 type t = {

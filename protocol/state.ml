@@ -16,8 +16,7 @@ let save t =
   Writer.save_sexp (location ()) sexp
   |> Deferred.ok
 
-let load () =
-  Reader.load_sexp (location ()) t_of_sexp
+let load () = Reader.load_sexp (location ()) t_of_sexp
 
 open Or_error.Let_syntax
 

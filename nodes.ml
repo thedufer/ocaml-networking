@@ -28,7 +28,7 @@ let yes_command =
          let open Deferred.Or_error.Let_syntax in
          let%bind (_r, w) = Helper.connect (Node.Id.of_string id) in
          Clock.every' (Time.Span.of_string "1s") (fun () ->
-             Pipe.write w {Message. port; data = ['y']});
+             Pipe.write w {Message. port; data = ['a';'b';'c';'d';'e';'f';'g';'h';'i';'j']});
          Deferred.never ()
      ]
 

@@ -57,6 +57,7 @@ let add_connection_command =
       and port1 = anon ("PORT-1" %: int)
       and id2 = anon ("NODE-ID-2" %: string)
       and port2 = anon ("PORT-2" %: int)
+      and type_ = Connection.Type.param
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
@@ -69,7 +70,7 @@ let add_connection_command =
             port1;
             node2 = id2;
             port2;
-            type_ = Perfect;
+            type_;
           }
         in
         let%bind conn =

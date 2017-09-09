@@ -6,6 +6,10 @@ module Type : sig
     (* [int] is number of bits changed per kilobyte *)
     | Changed of int
   [@@deriving bin_io, sexp]
+
+  val param : t Command.Param.t
+
+  val map_data : t -> char list -> char list
 end
 
 type t = {
@@ -22,4 +26,7 @@ val same_ports : t -> t -> bool
 
 val uses_port : t -> Node.Id.t * int -> bool
 
-val get_connected_port : t list -> Node.Id.t * int -> (Node.Id.t * int) option
+val get_connected_port_and_type
+  :  t list
+  -> Node.Id.t * int
+  -> (Node.Id.t * int * Type.t) option

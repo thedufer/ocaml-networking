@@ -6,6 +6,7 @@ module Type : sig
     (* [int] is number of bits changed per kilobyte *)
     | Changed of int
     | Skewed of bool list ref
+    | Changed_and_skewed of int * bool list ref
   [@@deriving bin_io, sexp]
 
   val param : t Command.Param.t

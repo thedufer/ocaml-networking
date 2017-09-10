@@ -5,6 +5,7 @@ module Type = struct
     | Perfect
     | Changed of int
     | Skewed of bool list ref
+    | Changed_and_skewed of int * bool list ref
   [@@deriving bin_io, compare, sexp]
 
   let skew_start () =
@@ -30,23 +31,30 @@ module Type = struct
         (Bool.to_int b lsl i) lor c)
     |> Char.of_int_exn
 
+  let change_data data n =
+    List.map data ~f:(fun c ->
+        char_to_bools c
+        |> List.map ~f:(fun b ->
+            if Random.int (8 * 1000) < n
+            then not b
+            else b)
+        |> bools_to_char)
+
+  let skew_data data old_bits =
+    List.map data ~f:(fun c ->
+        let bits = !old_bits @ char_to_bools c in
+        let (bits_to_pass, bits_to_store) = List.split_n bits 8 in
+        old_bits := bits_to_store;
+        bools_to_char bits_to_pass)
+
   let map_data t data =
     match t with
     | Perfect -> data
-    | Changed n ->
-      List.map data ~f:(fun c ->
-          char_to_bools c
-          |> List.map ~f:(fun b ->
-              if Random.int (8 * 1000) < n
-              then not b
-              else b)
-          |> bools_to_char)
-    | Skewed old_bits ->
-      List.map data ~f:(fun c ->
-          let bits = !old_bits @ char_to_bools c in
-          let (bits_to_pass, bits_to_store) = List.split_n bits 8 in
-          old_bits := bits_to_store;
-          bools_to_char bits_to_pass)
+    | Changed n -> change_data data n
+    | Skewed old_bits -> skew_data data old_bits
+    | Changed_and_skewed (n, old_bits) ->
+      let data = skew_data data old_bits in
+      change_data data n
 end
 
 type t = {

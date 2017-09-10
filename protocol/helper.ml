@@ -1,6 +1,5 @@
 open Core
 open Async
-open Protocol
 
 open Deferred.Or_error.Let_syntax
 
@@ -15,7 +14,7 @@ let implementations pipe =
     ~on_unknown_rpc:`Close_connection
 
 let connect id =
-  let%bind state = Protocol.State.load () in
+  let%bind state = State.load () in
   let (r_pipe, w_pipe) = Pipe.create () in
   let implementations =
     { Rpc.Connection.Client_implementations.

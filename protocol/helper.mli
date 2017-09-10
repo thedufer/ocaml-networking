@@ -1,6 +1,5 @@
 open Core
 open Async
-open Protocol
 
 val connect
   :  Node.Id.t

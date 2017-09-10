@@ -2,6 +2,6 @@
 
 (executables (
   (names (client nodes server))
-  (libraries (core async protocol))
+  (libraries (core async sdn_local_protocol))
   (preprocess (pps (ppx_jane)))
   ))

@@ -1,6 +1,6 @@
 open Core
 open Async
-open Protocol
+open Sdn_local_protocol
 
 let listen_command =
   let open Command.Let_syntax in

@@ -1,6 +1,7 @@
 open! Core
 open! Async
-open Protocol
+open Sdn_local_protocol
+
 open Deferred.Or_error.Let_syntax
 
 let update (state, _, _) ~f =

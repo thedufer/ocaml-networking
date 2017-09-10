@@ -1,6 +1,6 @@
 open! Core
 open! Async
-open Protocol
+open Sdn_local_protocol
 
 let add_node_command =
   let open Command.Let_syntax in
@@ -11,7 +11,7 @@ let add_node_command =
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind state = Protocol.State.load () in
+        let%bind state = State.load () in
         let%bind conn =
           let port = state.server_port in
           Rpc.Connection.client ~host:"localhost" ~port ()
@@ -35,7 +35,7 @@ let drop_node_command =
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind state = Protocol.State.load () in
+        let%bind state = State.load () in
         let%bind conn =
           let port = state.server_port in
           Rpc.Connection.client ~host:"localhost" ~port ()
@@ -61,7 +61,7 @@ let add_connection_command =
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind state = Protocol.State.load () in
+        let%bind state = State.load () in
         let id1 = Node.Id.of_string id1 in
         let id2 = Node.Id.of_string id2 in
         let new_connection =
@@ -97,7 +97,7 @@ let drop_connection_command =
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind state = Protocol.State.load () in
+        let%bind state = State.load () in
         let id1 = Node.Id.of_string id1 in
         let id2 = Node.Id.of_string id2 in
         let new_connection =
@@ -130,7 +130,7 @@ let print_dot_command =
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind state = Protocol.State.load () in
+        let%bind state = State.load () in
         print_endline (State.to_dot_format state);
         return ()
     ]

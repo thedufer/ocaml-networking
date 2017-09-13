@@ -1,0 +1,4 @@
+lib: [
+  "_build/install/default/lib/sdn-local-protocol/META" {"META"}
+  "_build/install/default/lib/sdn-local-protocol/opam" {"opam"}
+]

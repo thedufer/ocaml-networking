@@ -109,5 +109,3 @@ let command =
     ("init", init_command);
     ("run-server", run_server_command);
   ]
-
-let () = Command.run command

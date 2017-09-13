@@ -143,5 +143,3 @@ let command =
     ("drop-connection", drop_connection_command );
     ("print-dot"      , print_dot_command       );
   ]
-
-let () = Command.run command

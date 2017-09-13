@@ -1,11 +1,11 @@
 (jbuild_version 1)
 
 (executables (
-  (names (client server))
+  (names (main))
   (libraries (core async sdn_local_protocol))
   (preprocess (pps (ppx_jane)))
   ))
 
 (install
  ((section bin)
-  (files ((client.exe as sdn-client) (server.exe as sdn-server)))))
+  (files ((main.exe as sdn-local)))))

@@ -1,8 +1,0 @@
-lib: [
-  "_build/install/default/lib/sdn_local_protocol/META" {"META"}
-  "_build/install/default/lib/sdn_local_protocol/opam" {"opam"}
-]
-bin: [
-  "_build/install/default/bin/sdn-client" {"sdn-client"}
-  "_build/install/default/bin/sdn-server" {"sdn-server"}
-]

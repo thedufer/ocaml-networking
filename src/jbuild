@@ -1,7 +1,8 @@
 (jbuild_version 1)
 
 (library (
-  (name sdn_local_protocol)
+  (name        sdn_local_protocol)
+  (public_name sdn_local_protocol)
   (libraries (core async))
   (preprocess (pps (ppx_jane)))
   ))

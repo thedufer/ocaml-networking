@@ -57,20 +57,23 @@ let add_connection_command =
       and port1 = anon ("PORT-1" %: int)
       and id2 = anon ("NODE-ID-2" %: string)
       and port2 = anon ("PORT-2" %: int)
-      and type_ = Connection.Type.param
+      and transformations = Connection.Transformations.param
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
         let%bind state = State.load () in
         let id1 = Node.Id.of_string id1 in
         let id2 = Node.Id.of_string id2 in
+        let extra_bits = ref [] in
+        Connection.Transformations.init_extra_bits transformations extra_bits;
         let new_connection =
           { Connection.
             node1 = id1;
             port1;
             node2 = id2;
             port2;
-            type_;
+            extra_bits;
+            transformations;
           }
         in
         let%bind conn =
@@ -100,13 +103,15 @@ let drop_connection_command =
         let%bind state = State.load () in
         let id1 = Node.Id.of_string id1 in
         let id2 = Node.Id.of_string id2 in
+        (* TODO perhaps a type that holds just the endpoints of the connection *)
         let new_connection =
           { Connection.
             node1 = id1;
             port1;
             node2 = id2;
             port2;
-            type_ = Perfect;
+            extra_bits = ref [];
+            transformations = Connection.Transformations.empty;
           }
         in
         let%bind conn =

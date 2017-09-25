@@ -26,18 +26,24 @@ let register_connection ((state : State.t ref), w_bag, conn) id =
   |> Deferred.map ~f:(fun () -> Bag.remove w_bag elt)
   |> don't_wait_for;
   Pipe.iter_without_pushback r ~f:(fun (from_msg : Message.t) ->
-      Connection.get_connected_port_and_type (!state).connections (id, from_msg.port)
-      |> Option.iter  ~f:(fun (to_id, to_port, type_) ->
-          let to_msg =
-            { Message.
-              port = to_port;
-              data = Connection.Type.map_data type_ from_msg.data;
-            }
+      Connection.get_connected_port_and_connection (!state).connections (id, from_msg.port)
+      |> Option.iter  ~f:(fun (to_id, to_port, (conn : Connection.t)) ->
+          let to_msgs =
+            Connection.Transformations.map_data
+              conn.transformations
+              conn.extra_bits
+              from_msg.data
+            |> List.map ~f:(fun data ->
+                { Message.
+                  port = to_port;
+                  data;
+                })
           in
           Bag.iter w_bag ~f:(fun (w_pipe, id) ->
               if Node.Id.equal id to_id then
-                Pipe.write_if_open w_pipe to_msg
-                |> don't_wait_for)))
+                List.iter to_msgs ~f:(fun to_msg ->
+                    Pipe.write_if_open w_pipe to_msg
+                    |> don't_wait_for))))
   |> don't_wait_for;
   return ret_pipe
 

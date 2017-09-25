@@ -1,24 +1,35 @@
 open! Core
 
-module Type = struct
-  type t =
-    | Perfect
-    | Changed of int
-    | Skewed of bool list ref
-    | Changed_and_skewed of int * bool list ref
-  [@@deriving bin_io, compare, sexp]
+module Transformations = struct
+  type t = {
+    changed : int;
+    skewed : bool;
+    padded : bool;
+    rewindowed : int option;
+  } [@@deriving bin_io, compare, fields, sexp]
 
-  let skew_start () =
-    List.init (Random.int 8) ~f:(fun _ -> Random.bool ())
-    |> ref
+  let empty = {
+    changed    = 0;
+    skewed     = false;
+    padded     = false;
+    rewindowed = None;
+  }
+
+  let create = Fields.create
 
   let param =
-    let open Command.Param in
-    choose_one ~if_nothing_chosen:(`Default_to Perfect) [
-      (flag "changed" (optional int) ~doc:"N bits flipped per kilobyte"
-       |> map ~f:(Option.map ~f:(fun n -> Changed n)));
-      (flag "skewed" no_arg ~doc:" skewed bytes"
-       |> map ~f:(fun b -> Option.some_if b (Skewed (skew_start ()))));
+    let open Command.Let_syntax in
+    [%map_open
+      let changed =
+        flag "changed" (optional_with_default 0 int) ~doc:"N bits flipped per kilobyte"
+      and skewed =
+        flag "skewed" no_arg ~doc:" skewed bytes"
+      and padded =
+        flag "padded" no_arg ~doc:" padding between messages"
+      and rewindowed =
+        flag "rewindowed" (optional int) ~doc:"N bytes per message"
+      in
+      {changed; skewed; padded; rewindowed}
     ]
 
   let char_to_bools c =
@@ -31,30 +42,66 @@ module Type = struct
         (Bool.to_int b lsl i) lor c)
     |> Char.of_int_exn
 
+  let chunks l n =
+    assert (n > 0);
+    let (rev_bytes, rev_remaining_bits) =
+      List.fold l ~init:([], [])
+        ~f:(fun (rev_chunks, rev_remaining_elts) elt ->
+            if List.length rev_remaining_elts = n then
+              let new_byte = List.rev (elt :: rev_remaining_elts) in
+              (new_byte :: rev_chunks, [])
+            else
+              (rev_chunks, elt :: rev_remaining_elts))
+    in
+    (List.rev rev_bytes, List.rev rev_remaining_bits)
+
+  let bools_to_bytes bs =
+    let (chunks, remaining_bits) = chunks bs 8 in
+    (List.map chunks ~f:bools_to_char, remaining_bits)
+
+  (* Up to [0...n] random bits. *)
+  let random_bits n =
+    List.init (Random.int n) ~f:(fun _ -> Random.bool ())
+
+  let skew_start extra_bits =
+    extra_bits := random_bits 8
+
   let change_data data n =
-    List.map data ~f:(fun c ->
-        char_to_bools c
-        |> List.map ~f:(fun b ->
-            if Random.int (8 * 1000) < n
-            then not b
-            else b)
-        |> bools_to_char)
+    List.map data ~f:(fun b ->
+        if Random.int (8 * 1000) < n
+        then not b
+        else b)
 
-  let skew_data data old_bits =
-    List.map data ~f:(fun c ->
-        let bits = !old_bits @ char_to_bools c in
-        let (bits_to_pass, bits_to_store) = List.split_n bits 8 in
-        old_bits := bits_to_store;
-        bools_to_char bits_to_pass)
+  let init_extra_bits t extra_bits =
+    if t.skewed
+    then skew_start extra_bits
+    else ()
 
-  let map_data t data =
-    match t with
-    | Perfect -> data
-    | Changed n -> change_data data n
-    | Skewed old_bits -> skew_data data old_bits
-    | Changed_and_skewed (n, old_bits) ->
-      let data = skew_data data old_bits in
-      change_data data n
+  let map_data t extra_bits old_data =
+    let old_bits =
+      !extra_bits @
+      List.concat_map old_data ~f:char_to_bools
+    in
+    let changed = change_data old_bits t.changed in
+    let padded =
+      if t.padded then
+        let len = List.length changed in
+        random_bits len @
+        changed @
+        random_bits len
+      else
+        changed
+    in
+    let (rewindowed, new_extra_bits) =
+      let (bytes, extra_bits) = bools_to_bytes padded in
+      match t.rewindowed with
+      | None -> ([bytes], extra_bits)
+      | Some n ->
+        let (chunks, extra_bytes) = chunks bytes n in
+        (chunks, List.concat_map extra_bytes ~f:char_to_bools @ extra_bits)
+    in
+    extra_bits := new_extra_bits;
+    rewindowed
 end
 
 type t = {
@@ -62,7 +109,8 @@ type t = {
   port1 : int;
   node2 : Node.Id.t;
   port2 : int;
-  type_ : Type.t;
+  transformations : Transformations.t;
+  extra_bits : bool list ref;
 } [@@deriving bin_io, compare, sexp]
 
 let uses_port t (id, port) =
@@ -76,10 +124,10 @@ let equal = [%compare.equal: t]
 
 let same_ports t1 t2 = uses_port t1 (t2.node1, t2.port1) && uses_port t1 (t2.node2, t2.port2)
 
-let get_connected_port_and_type ts (id, port) =
+let get_connected_port_and_connection ts (id, port) =
   List.find ts ~f:(fun t -> uses_port t (id, port))
   |> Option.map ~f:(fun connection ->
       if Node.Id.equal connection.node1 id then
-        (connection.node2, connection.port2, connection.type_)
+        (connection.node2, connection.port2, connection)
       else
-        (connection.node1, connection.port1, connection.type_))
+        (connection.node1, connection.port1, connection))

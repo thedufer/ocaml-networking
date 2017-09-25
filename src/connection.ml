@@ -15,7 +15,13 @@ module Transformations = struct
     rewindowed = None;
   }
 
-  let create = Fields.create
+  let create ~changed ~skewed ~padded ~rewindowed =
+    begin
+      match rewindowed with
+      | None -> ()
+      | Some x -> assert (x > 0)
+    end;
+    Fields.create ~changed ~skewed ~padded ~rewindowed
 
   let param =
     let open Command.Let_syntax in

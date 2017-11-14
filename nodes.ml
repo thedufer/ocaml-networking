@@ -59,7 +59,7 @@ let ethernet_command =
         in
         don't_wait_for (Pipe.transfer_id stdin w);
         don't_wait_for (Pipe.transfer_id r stdout);
-        return ()
+        Deferred.never ()
     ]
 
 let command =

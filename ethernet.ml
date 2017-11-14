@@ -2,10 +2,8 @@ open Core
 open Async
 open Sdn_local_protocol
 
-(* TODO *)
-let reader pipe = pipe
-
 let header = ['\xf0'; '\xcc'; '\xaa'; '\xab']
+let header_bits = List.concat_map header ~f:Util.char_to_bools
 
 let calc_crc bytes =
   let poly = Int32.of_int_exn 0x04C11DB7 in
@@ -32,7 +30,6 @@ let calc_crc bytes =
       )
   in
   let int = Int32.bit_not int in
-  printf !"%{Int32}\n" int;
   [ Int32.(bit_and (of_int_exn 0xff) (int lsr 24)) |> Int32.to_int_exn |> Char.of_int_exn
   ; Int32.(bit_and (of_int_exn 0xff) (int lsr 16)) |> Int32.to_int_exn |> Char.of_int_exn
   ; Int32.(bit_and (of_int_exn 0xff) (int lsr 8))  |> Int32.to_int_exn |> Char.of_int_exn
@@ -42,6 +39,126 @@ let calc_crc bytes =
   |> List.map ~f:Util.char_to_bools
   |> List.map ~f:List.rev
   |> List.map ~f:Util.bools_to_char
+
+let find_prefix q new_bits ~length ~f =
+  let rec loop new_bits =
+    if Int.equal (Queue.length q) length && f (Queue.to_list q) then begin
+      let prefix = Queue.to_list q in
+      Queue.filter_inplace q ~f:(const false);
+      Some (`Remaining_bits new_bits, `Prefix prefix)
+    end else begin
+      if Int.equal (Queue.length q) length then
+        ignore (Queue.dequeue q);
+      match new_bits with
+      | [] -> None
+      | x :: xs ->
+        Queue.enqueue q x;
+        loop xs
+    end
+  in
+  loop new_bits
+
+module Reading = struct
+  module State = struct
+    type t =
+      | Start
+      | Found_header
+      | Got_length of int
+      | Got_data of {data : char list; crc : char list}
+  end
+
+  type t = {
+    state : State.t;
+    queue : bool Queue.t;
+  }
+
+  let start () = {
+    state = Start;
+    queue = Queue.create ();
+  }
+
+  let process_bits t bits =
+    let rec loop t bits packets =
+    match t.state with
+    | Start -> begin
+        let result =
+          find_prefix t.queue bits ~length:(List.length header_bits)
+            ~f:(List.equal ~equal:Bool.equal header_bits)
+        in
+        match result with
+        | None -> (t, packets)
+        | Some (`Remaining_bits bits, `Prefix _) -> loop {t with state = Found_header} bits packets
+      end
+    | Found_header -> begin
+        let result = find_prefix t.queue bits ~length:16 ~f:(const true) in
+        match result with
+        | None -> (t, packets)
+        | Some (`Remaining_bits bits, `Prefix len_bits) ->
+          let len =
+            let (lists, extra_bits) = Util.chunks len_bits 8 in
+            if not (List.is_empty extra_bits) then
+              raise_s [%message "bad len part" (len_bits : bool list) (lists : bool list list) (extra_bits : bool list)];
+            let (fst_byte, snd_byte) =
+              match
+                List.map lists ~f:(fun bs ->
+                    Util.bools_to_char bs |> Char.to_int)
+              with
+              | [fst; snd] -> (fst, snd)
+              | _ -> assert false
+            in
+            (fst_byte lsl 8) lor snd_byte
+          in
+          loop {t with state = Got_length len} bits packets
+      end
+    | Got_length len -> begin
+        let result = find_prefix t.queue bits ~length:(len * 8) ~f:(const true) in
+        match result with
+        | None -> (t, packets)
+        | Some (`Remaining_bits bits, `Prefix data) ->
+          let (lists, extra_bits) = Util.chunks data 8 in
+          assert (List.is_empty extra_bits);
+          let data = List.map lists ~f:Util.bools_to_char in
+          let crc = calc_crc data in
+          loop {t with state = Got_data {data; crc}} bits packets
+      end
+    | Got_data {data; crc} -> begin
+        let result = find_prefix t.queue bits ~length:32 ~f:(const true) in
+        match result with
+        | None -> (t, packets)
+        | Some (`Remaining_bits bits, `Prefix crc') ->
+          let (lists, extra_bits) = Util.chunks crc' 8 in
+          assert (List.is_empty extra_bits);
+          let crc' = List.map lists ~f:Util.bools_to_char in
+          let packets =
+            if List.equal ~equal:Char.equal crc crc' then
+              data :: packets
+            else
+              packets
+          in
+          loop {t with state = Start} bits packets
+      end
+    in
+    loop t bits []
+end
+
+let reader pipe =
+  let (r, w) = Pipe.create () in
+  let states = Int.Table.create () in
+  Pipe.transfer pipe w ~f:(fun (msg : Message.t) ->
+      let bits = List.concat_map msg.data ~f:Util.char_to_bools in
+      let state =
+        Hashtbl.find_or_add states msg.port ~default:(fun () -> Reading.start ())
+      in
+      let (state, result) = Reading.process_bits state bits in
+      Hashtbl.update states msg.port (const state);
+      List.map result ~f:(fun data -> {msg with data})
+    )
+  |> don't_wait_for;
+  Pipe.map' r ~f:(fun q ->
+      Queue.to_list q
+      |> List.concat
+      |> Queue.of_list
+      |> Deferred.return)
 
 let writer pipe =
   let (r, w) = Pipe.create () in

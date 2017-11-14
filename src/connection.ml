@@ -38,32 +38,9 @@ module Transformations = struct
       {changed; skewed; padded; rewindowed}
     ]
 
-  let char_to_bools c =
-    let c = Char.to_int c in
-    List.init 8 ~f:(fun i ->
-      ((1 lsl i) land c) > 0)
-
-  let bools_to_char bs =
-    List.foldi bs ~init:0 ~f:(fun i c b ->
-        (Bool.to_int b lsl i) lor c)
-    |> Char.of_int_exn
-
-  let chunks l n =
-    assert (n > 0);
-    let (rev_bytes, rev_remaining_bits) =
-      List.fold l ~init:([], [])
-        ~f:(fun (rev_chunks, rev_remaining_elts) elt ->
-            if List.length rev_remaining_elts = n then
-              let new_byte = List.rev (elt :: rev_remaining_elts) in
-              (new_byte :: rev_chunks, [])
-            else
-              (rev_chunks, elt :: rev_remaining_elts))
-    in
-    (List.rev rev_bytes, List.rev rev_remaining_bits)
-
   let bools_to_bytes bs =
-    let (chunks, remaining_bits) = chunks bs 8 in
-    (List.map chunks ~f:bools_to_char, remaining_bits)
+    let (chunks, remaining_bits) = Util.chunks bs 8 in
+    (List.map chunks ~f:Util.bools_to_char, remaining_bits)
 
   (* Up to [0...n] random bits. *)
   let random_bits n =
@@ -86,7 +63,7 @@ module Transformations = struct
   let map_data t extra_bits old_data =
     let old_bits =
       !extra_bits @
-      List.concat_map old_data ~f:char_to_bools
+      List.concat_map old_data ~f:Util.char_to_bools
     in
     let changed = change_data old_bits t.changed in
     let padded =
@@ -103,8 +80,8 @@ module Transformations = struct
       match t.rewindowed with
       | None -> ([bytes], extra_bits)
       | Some n ->
-        let (chunks, extra_bytes) = chunks bytes n in
-        (chunks, List.concat_map extra_bytes ~f:char_to_bools @ extra_bits)
+        let (chunks, extra_bytes) = Util.chunks bytes n in
+        (chunks, List.concat_map extra_bytes ~f:Util.char_to_bools @ extra_bits)
     in
     extra_bits := new_extra_bits;
     rewindowed

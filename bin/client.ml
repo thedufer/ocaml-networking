@@ -57,10 +57,16 @@ let add_connection_command =
       and port1 = anon ("PORT-1" %: int)
       and id2 = anon ("NODE-ID-2" %: string)
       and port2 = anon ("PORT-2" %: int)
-      and transformations = Connection.Transformations.param
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
+        let transformations =
+          Connection.Transformations.create
+            ~changed:1
+            ~skewed:true
+            ~padded:true
+            ~rewindowed:(Some 4)
+        in
         let%bind state = State.load () in
         let id1 = Node.Id.of_string id1 in
         let id2 = Node.Id.of_string id2 in

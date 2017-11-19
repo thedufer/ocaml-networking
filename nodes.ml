@@ -32,9 +32,9 @@ let yes_command =
          Deferred.never ()
      ]
 
-let ethernet_command =
+let make_port_command ~summary r_transform w_transform =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"stdout/stdin via ethernet frames"
+  Command.async_or_error' ~summary
     [%map_open
       let id = anon ("NODE-ID" %: string)
       and port = anon ("PORT" %: int)
@@ -42,9 +42,9 @@ let ethernet_command =
       fun () ->
         let open Deferred.Or_error.Let_syntax in
         let%bind (r, w) = Helper.connect (Node.Id.of_string id) in
-        let (r, w) = (Ethernet.reader r, Ethernet.writer w) in
+        let (r, w) = (r_transform r, w_transform w) in
         let r =
-          Pipe.filter_map r ~f:(fun {port = port'; data} ->
+          Pipe.filter_map r ~f:(fun {Message. port = port'; data} ->
               if port = port'
               then Some (String.of_char_list data)
               else None)
@@ -62,11 +62,19 @@ let ethernet_command =
         Deferred.never ()
     ]
 
+let passthrough_command =
+  make_port_command ~summary:"stdout/stdin with no processing" Fn.id Fn.id
+
+let ethernet_command =
+  make_port_command ~summary:"stdout/stdin via ethernet frames"
+    Ethernet.reader Ethernet.writer
+
 let command =
   Command.group ~summary:"various client programs" [
-    ("ethernet", ethernet_command );
-    ("listen",   listen_command   );
-    ("yes",      yes_command      );
+    ("ethernet",    ethernet_command    );
+    ("listen",      listen_command      );
+    ("passthrough", passthrough_command );
+    ("yes",         yes_command         );
   ]
 
 let () = Command.run command

@@ -68,7 +68,7 @@ module Transformations = struct
     let changed = change_data old_bits t.changed in
     let padded =
       if t.padded then
-        let len = List.length changed in
+        let len = List.length changed / 2 in
         random_bits len @
         changed @
         random_bits len

@@ -35,13 +35,13 @@ let make_port_command ~summary r_transform w_transform =
 let passthrough_command =
   make_port_command ~summary:"stdout/stdin with no processing" Fn.id Fn.id
 
-let ethernet_command =
-  make_port_command ~summary:"stdout/stdin via ethernet frames"
-    Ethernet.reader Ethernet.writer
+let layer_one_command =
+  make_port_command ~summary:"stdout/stdin via layer 1 frames"
+    Layer_one.reader Layer_one.writer
 
 let command =
   Command.group ~summary:"various client programs" [
-    ("ethernet",    ethernet_command    );
+    ("layer-one",  layer_one_command    );
     ("passthrough", passthrough_command );
   ]
 

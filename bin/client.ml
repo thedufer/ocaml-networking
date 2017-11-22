@@ -19,8 +19,7 @@ let add_node_command =
         in
         let%bind () =
           let id = Node.Id.of_string id in
-          let node = {Node. id; ports} in
-          Rpcs.Add_node.dispatch conn node
+          Rpcs.Add_node.dispatch conn (id, ports)
           |> Deferred.map ~f:Or_error.join
         in
         printf "done\n";

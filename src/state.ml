@@ -23,11 +23,11 @@ open Or_error.Let_syntax
 let has_node_with_id t id =
   List.exists t.nodes ~f:(fun node -> Node.Id.equal id node.id)
 
-let add_node t (node : Node.t) =
-  if has_node_with_id t node.id then
+let add_node t (id : Node.Id.t) ports =
+  if has_node_with_id t id then
     Or_error.error_string "node with id already exists"
   else
-    let nodes = node :: t.nodes in
+    let nodes = {Node. id; ports; address = Address.create () } :: t.nodes in
     Ok {t with nodes}
 
 let drop_node t (id : Node.Id.t) =

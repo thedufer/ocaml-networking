@@ -32,7 +32,7 @@ end
 
 module Add_node = struct
   include Make (struct
-      type query = Node.t [@@deriving bin_io]
+      type query = Node.Id.t * int [@@deriving bin_io]
       type response = unit Or_error.t [@@deriving bin_io]
       let name = "add-node"
       let version = 1
@@ -80,6 +80,15 @@ module Register_response = struct
       type query = unit [@@deriving bin_io]
       type response = Message.t [@@deriving bin_io]
       let name = "register-response"
+      let version = 1
+    end)
+end
+
+module Get_address = struct
+  include Make (struct
+      type query = unit [@@deriving bin_io]
+      type response = Address.t Or_error.t [@@deriving bin_io]
+      let name = "get-address"
       let version = 1
     end)
 end

@@ -31,4 +31,8 @@ let connect id =
     Rpcs.Register.dispatch conn id
     |> Deferred.map ~f:Or_error.join
   in
-  return (r_pipe, w_pipe)
+  let%bind address =
+    Rpcs.Get_address.dispatch conn ()
+    |> Deferred.map ~f:Or_error.join
+  in
+  return (r_pipe, w_pipe, address)

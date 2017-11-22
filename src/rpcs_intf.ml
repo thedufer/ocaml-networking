@@ -26,7 +26,7 @@ module type Rpcs = sig
   module type S = S
 
   module Add_node : S
-    with type query = Node.t
+    with type query = Node.Id.t * int
      and type response = unit Or_error.t
 
   module Drop_node : S
@@ -48,4 +48,8 @@ module type Rpcs = sig
   module Register_response : S_pipe
     with type query = unit
      and type response = Message.t
+
+  module Get_address : S
+    with type query = unit
+     and type response = Address.t Or_error.t
 end

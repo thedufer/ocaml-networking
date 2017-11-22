@@ -49,8 +49,8 @@ let register_connection ((state : State.t ref), w_bag, conn) id =
 
 let implementations =
   let implementations =
-    [ Rpcs.Add_node.implement (fun state node ->
-          update state ~f:(fun s -> State.add_node s node));
+    [ Rpcs.Add_node.implement (fun state (id, ports) ->
+          update state ~f:(fun s -> State.add_node s id ports));
       Rpcs.Drop_node.implement (fun state node_id ->
           update state ~f:(fun s -> State.drop_node s node_id));
       Rpcs.Add_connection.implement (fun state connection ->

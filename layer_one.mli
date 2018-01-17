@@ -2,13 +2,13 @@ open Core
 open Async
 open Sdn_local_protocol
 
-(* Ethernet-like protocol:
+(* Layer-one protocol for getting messages across a single connection:
 
    The protocol looks like:
 
    - frame header (4 bytes)
    - length (2 bytes)
-   - payload (<length> bytes)
+   - payload (<length> bytes - between 0 and 65535)
    - CRC (4 bytes)
 *)
 

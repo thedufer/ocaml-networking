@@ -2,17 +2,21 @@ open Core
 open Async
 open Sdn_local_protocol
 
-let make_port_command ~summary r_transform w_transform =
+let make_port_command ~summary ~param r_transform w_transform =
   let open Command.Let_syntax in
   Command.async_or_error' ~summary
     [%map_open
       let id = anon ("NODE-ID" %: string)
       and port = anon ("PORT" %: int)
+      and transform_config = param
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind (r, w, _) = Helper.connect (Node.Id.of_string id) in
-        let (r, w) = (r_transform r, w_transform w) in
+        let%bind (r, w, me) = Helper.connect (Node.Id.of_string id) in
+        let (r, w) =
+          ( r_transform ~me transform_config r
+          , w_transform ~me transform_config w)
+        in
         let r =
           Pipe.filter_map r ~f:(fun {Message. port = port'; data} ->
               if port = port'
@@ -32,16 +36,37 @@ let make_port_command ~summary r_transform w_transform =
         Deferred.never ()
     ]
 
+let make_port_command_simple ~summary r_transform w_transform =
+  make_port_command ~summary ~param:(Command.Param.return ())
+    (fun ~me () -> r_transform)
+    (fun ~me () -> w_transform)
+
 let passthrough_command =
-  make_port_command ~summary:"stdout/stdin with no processing" Fn.id Fn.id
+  make_port_command_simple ~summary:"stdout/stdin with no processing"
+    Fn.id Fn.id
 
 let layer_one_command =
-  make_port_command ~summary:"stdout/stdin via layer 1 frames"
+  make_port_command_simple ~summary:"stdout/stdin via layer 1 frames"
     Layer_one.reader Layer_one.writer
+
+let layer_two_command =
+  make_port_command ~summary:"stdout/stdin via layer 2 frames"
+    ~param:Command.Param.(anon ("ADDR" %: Address.arg_type))
+    (fun ~me dest r ->
+       Pipe.filter_map (Layer_two.reader r) ~f:(fun {msg; to_; from} ->
+           if Address.equal from dest && Address.equal to_ me then
+             Some msg
+           else
+             None))
+    (fun ~me dest w ->
+       Pipe.create_writer (fun r ->
+           Pipe.transfer r (Layer_two.writer w) ~f:(fun msg ->
+               {Layer_two. msg; from = me; to_ = dest})))
 
 let command =
   Command.group ~summary:"various client programs" [
-    ("layer-one",  layer_one_command    );
+    ("layer-one",   layer_one_command   );
+    ("layer-two",   layer_two_command   );
     ("passthrough", passthrough_command );
   ]
 

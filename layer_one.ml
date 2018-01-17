@@ -30,15 +30,7 @@ let calc_crc bytes =
       )
   in
   let int = Int32.bit_not int in
-  [ Int32.(bit_and (of_int_exn 0xff) (int lsr 24)) |> Int32.to_int_exn |> Char.of_int_exn
-  ; Int32.(bit_and (of_int_exn 0xff) (int lsr 16)) |> Int32.to_int_exn |> Char.of_int_exn
-  ; Int32.(bit_and (of_int_exn 0xff) (int lsr 8))  |> Int32.to_int_exn |> Char.of_int_exn
-  ; Int32.(bit_and (of_int_exn 0xff)  int)         |> Int32.to_int_exn |> Char.of_int_exn
-  ]
-  |> List.rev
-  |> List.map ~f:Util.char_to_bools
-  |> List.map ~f:List.rev
-  |> List.map ~f:Util.bools_to_char
+  Bytes_.of_int ~num_bytes:4 (Int32.to_int_exn int)
 
 let find_prefix q new_bits ~length ~f =
   let rec loop new_bits =
@@ -98,15 +90,8 @@ module Reading = struct
             let (lists, extra_bits) = Util.chunks len_bits 8 in
             if not (List.is_empty extra_bits) then
               raise_s [%message "bad len part" (len_bits : bool list) (lists : bool list list) (extra_bits : bool list)];
-            let (fst_byte, snd_byte) =
-              match
-                List.map lists ~f:(fun bs ->
-                    Util.bools_to_char bs |> Char.to_int)
-              with
-              | [fst; snd] -> (fst, snd)
-              | _ -> assert false
-            in
-            (fst_byte lsl 8) lor snd_byte
+            List.map lists ~f:Util.bools_to_char
+            |> Bytes_.to_int ~num_bytes:2
           in
           loop {t with state = Got_length len} bits packets
       end
@@ -166,8 +151,7 @@ let writer pipe =
       let data =
         let length =
           let i = List.length msg.data in
-          assert (i < Int.pow 2 16);
-          [(i lsr 8) land 0xff |> Char.of_int_exn; i land 0xff |> Char.of_int_exn]
+          Bytes_.of_int i ~num_bytes:2
         in
         List.concat [
           header;

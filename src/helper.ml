@@ -31,8 +31,12 @@ let connect id =
     Rpcs.Register.dispatch conn id
     |> Deferred.map ~f:Or_error.join
   in
-  let%bind address =
-    Rpcs.Get_address.dispatch conn ()
-    |> Deferred.map ~f:Or_error.join
+  let%bind (address, ports) =
+    let%bind state = State.load () in
+    let node =
+      List.find_exn state.nodes ~f:(fun node ->
+          Node.Id.equal node.id id)
+    in
+    return (node.address, node.ports)
   in
-  return (r_pipe, w_pipe, address)
+  return (r_pipe, w_pipe, address, ports)

@@ -48,8 +48,4 @@ module type Rpcs = sig
   module Register_response : S_pipe
     with type query = unit
      and type response = Message.t
-
-  module Get_address : S
-    with type query = unit
-     and type response = Address.t Or_error.t
 end

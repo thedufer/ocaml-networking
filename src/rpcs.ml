@@ -83,12 +83,3 @@ module Register_response = struct
       let version = 1
     end)
 end
-
-module Get_address = struct
-  include Make (struct
-      type query = unit [@@deriving bin_io]
-      type response = Address.t Or_error.t [@@deriving bin_io]
-      let name = "get-address"
-      let version = 1
-    end)
-end

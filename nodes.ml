@@ -9,10 +9,9 @@ let make_port_command ~summary ~param r_transform w_transform =
       let id = anon ("NODE-ID" %: string)
       and port = anon ("PORT" %: int)
       and transform_config = param
-      in
-      fun () ->
+      in fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind (r, w, me) = Helper.connect (Node.Id.of_string id) in
+        let%bind (r, w, me, _) = Helper.connect (Node.Id.of_string id) in
         let (r, w) =
           ( r_transform ~me transform_config r
           , w_transform ~me transform_config w)
@@ -62,6 +61,31 @@ let layer_two_command =
        Pipe.create_writer (fun r ->
            Pipe.transfer r (Layer_two.writer w) ~f:(fun msg ->
                {Layer_two. msg; from = me; to_ = dest})))
+
+let switch_command =
+  let open Command.Let_syntax in
+  Command.async_or_error' ~summary:"start a switch"
+    [%map_open
+      let id = anon ("NODE-ID" %: string)
+      in fun () ->
+        let open Deferred.Or_error.Let_syntax in
+        let%bind (r, w, me, ports) = Helper.connect (Node.Id.of_string id) in
+        let r = Layer_two.reader r in
+        let w = Layer_two.writer w in
+        let r =
+          Pipe.map' r ~f:(fun q ->
+              List.concat_map (Queue.to_list q) ~f:(fun msg ->
+                  List.init ports ~f:(fun port ->
+                      {msg with msg = {msg.msg with port}}))
+              |> Queue.of_list
+              |> Deferred.return)
+        in
+        Pipe.transfer_id r w
+        |> Deferred.ok
+        (* Deliver every message on [r] to every port via [w]. Requires changing
+        [Helper.connect] to [Helper.connect : Node.Id.t -> (r * w * address *
+        port_count)] *)
+    ]
 
 let command =
   Command.group ~summary:"various client programs" [

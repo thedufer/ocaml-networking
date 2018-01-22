@@ -53,6 +53,8 @@ let layer_two_command =
     ~param:Command.Param.(anon ("ADDR" %: Address.arg_type))
     (fun ~me dest r ->
        Pipe.filter_map (Layer_two.reader r) ~f:(fun {msg; to_; from} ->
+           (* I'm not sure if [Address.equal from dest] is the right thing to
+           do. *)
            if Address.equal from dest && Address.equal to_ me then
              Some msg
            else
@@ -82,15 +84,13 @@ let switch_command =
         in
         Pipe.transfer_id r w
         |> Deferred.ok
-        (* Deliver every message on [r] to every port via [w]. Requires changing
-        [Helper.connect] to [Helper.connect : Node.Id.t -> (r * w * address *
-        port_count)] *)
     ]
 
 let command =
   Command.group ~summary:"various client programs" [
     ("layer-one",   layer_one_command   );
     ("layer-two",   layer_two_command   );
+    ("switch",      switch_command);
     ("passthrough", passthrough_command );
   ]
 

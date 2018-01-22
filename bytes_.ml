@@ -4,7 +4,7 @@ type t = char list
 
 let of_int int ~num_bytes =
   assert (num_bytes <= 8);
-  assert Big_int.((big_int_of_int int) < power_int_positive_int 2 (num_bytes * 8));
+  assert Big_int.(lt_big_int (big_int_of_int int) (power_int_positive_int 2 (num_bytes * 8)));
   List.init num_bytes ~f:(fun i ->
       (int lsr (i * 8)) land 0xff |> Char.of_int_exn
     )

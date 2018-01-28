@@ -2,7 +2,7 @@
 
 (executables (
   (names (nodes))
-  (libraries (core async sdn_local_protocol))
+  (libraries (core async num sdn_local_protocol))
   (preprocess (pps (ppx_jane)))
   ))
 

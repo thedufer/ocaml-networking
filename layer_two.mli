@@ -8,7 +8,7 @@ open Sdn_local_protocol
 
    - destination address (8 bytes)
    - source address (8 bytes)
-   - payload (0-65527 bytes)
+   - payload (0-65519 bytes)
 
    Then, this is passed as the payload in a layer-one frame.
 *)

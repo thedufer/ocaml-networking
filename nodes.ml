@@ -4,7 +4,7 @@ open Sdn_local_protocol
 
 let make_port_command ~summary ~param r_transform w_transform =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary
+  Command.async_or_error ~summary
     [%map_open
       let id = anon ("NODE-ID" %: string)
       and port = anon ("PORT" %: int)
@@ -66,7 +66,7 @@ let layer_two_command =
 
 let switch_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"start a switch"
+  Command.async_or_error ~summary:"start a switch"
     [%map_open
       let id = anon ("NODE-ID" %: string)
       in fun () ->
@@ -78,7 +78,11 @@ let switch_command =
           Pipe.map' r ~f:(fun q ->
               List.concat_map (Queue.to_list q) ~f:(fun msg ->
                   List.init ports ~f:(fun port ->
-                      {msg with msg = {msg.msg with port}}))
+                      if Int.equal msg.msg.port port then
+                        None
+                      else
+                        Some {msg with msg = {msg.msg with port}})
+                  |> List.filter_opt)
               |> Queue.of_list
               |> Deferred.return)
         in

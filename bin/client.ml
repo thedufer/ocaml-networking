@@ -4,7 +4,7 @@ open Sdn_local_protocol
 
 let add_node_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"add a node"
+  Command.async_or_error ~summary:"add a node"
     [%map_open
       let id = anon ("NEW-NODE-ID" %: string)
       and ports = anon ("PORTS-COUNT" %: int)
@@ -14,7 +14,8 @@ let add_node_command =
         let%bind state = State.load () in
         let%bind conn =
           let port = state.server_port in
-          Rpc.Connection.client ~host:"localhost" ~port ()
+          Rpc.Connection.client
+            (Tcp.Where_to_connect.of_host_and_port {host="localhost"; port})
           |> Deferred.Or_error.of_exn_result
         in
         let%bind () =
@@ -28,7 +29,7 @@ let add_node_command =
 
 let drop_node_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"drop a node"
+  Command.async_or_error ~summary:"drop a node"
     [%map_open
       let id = anon ("NODE-ID" %: string)
       in
@@ -37,7 +38,8 @@ let drop_node_command =
         let%bind state = State.load () in
         let%bind conn =
           let port = state.server_port in
-          Rpc.Connection.client ~host:"localhost" ~port ()
+          Rpc.Connection.client
+            (Tcp.Where_to_connect.of_host_and_port {host="localhost"; port})
           |> Deferred.Or_error.of_exn_result
         in
         let%bind () =
@@ -50,7 +52,7 @@ let drop_node_command =
 
 let add_connection_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"add a connection"
+  Command.async_or_error ~summary:"add a connection"
     [%map_open
       let id1 = anon ("NODE-ID-1" %: string)
       and port1 = anon ("PORT-1" %: int)
@@ -87,7 +89,8 @@ let add_connection_command =
         in
         let%bind conn =
           let port = state.server_port in
-          Rpc.Connection.client ~host:"localhost" ~port ()
+          Rpc.Connection.client
+            (Tcp.Where_to_connect.of_host_and_port {host="localhost"; port})
           |> Deferred.Or_error.of_exn_result
         in
         let%bind () =
@@ -100,7 +103,7 @@ let add_connection_command =
 
 let drop_connection_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"drop a connection"
+  Command.async_or_error ~summary:"drop a connection"
     [%map_open
       let id1 = anon ("NODE-ID-1" %: string)
       and port1 = anon ("PORT-1" %: int)
@@ -125,7 +128,8 @@ let drop_connection_command =
         in
         let%bind conn =
           let port = state.server_port in
-          Rpc.Connection.client ~host:"localhost" ~port ()
+          Rpc.Connection.client
+            (Tcp.Where_to_connect.of_host_and_port {host="localhost"; port})
           |> Deferred.Or_error.of_exn_result
         in
         let%bind () =
@@ -138,7 +142,7 @@ let drop_connection_command =
 
 let print_dot_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"print dot representation of network"
+  Command.async_or_error ~summary:"print dot representation of network"
     [%map_open
        let () = return ()
       in

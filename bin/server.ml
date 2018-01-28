@@ -64,7 +64,7 @@ let implementations =
 
 let run_server_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"start the server"
+  Command.async_or_error ~summary:"start the server"
     [%map_open
       let () = return ()
       in
@@ -73,7 +73,7 @@ let run_server_command =
         let%bind state = State.load () in
         let state_ref = ref state in
         let w_bag = Bag.create () in
-        let where_to_listen = Tcp.on_port state.server_port in
+        let where_to_listen = Tcp.Where_to_listen.of_port state.server_port in
         let%bind server =
           Rpc.Connection.serve ~implementations () ~where_to_listen
             ~initial_connection_state:(fun _ conn -> (state_ref, w_bag, conn))
@@ -85,7 +85,7 @@ let run_server_command =
 
 let init_command =
   let open Command.Let_syntax in
-  Command.async_or_error' ~summary:"init a state"
+  Command.async_or_error ~summary:"init a state"
     [%map_open
       let () = return ()
       in
@@ -93,9 +93,9 @@ let init_command =
         let open Deferred.Or_error.Let_syntax in
         let%bind server_port =
           (* Get a random port that isn't already being used and claim it. *)
-          let where_to_listen = Tcp.on_port_chosen_by_os in
+          let where_to_listen = Tcp.Where_to_listen.of_port_chosen_by_os in
           let%bind server =
-            Tcp.Server.create where_to_listen (fun _ _ _ -> Deferred.return ())
+            Tcp.Server.create ~on_handler_error:`Ignore where_to_listen (fun _ _ _ -> Deferred.return ())
             |> Deferred.ok
           in
           let%bind () =

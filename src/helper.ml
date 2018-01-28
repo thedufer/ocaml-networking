@@ -24,7 +24,9 @@ let connect id =
   in
   let%bind conn =
     let port = state.server_port in
-    Rpc.Connection.client ~host:"localhost" ~port ~implementations ()
+    Rpc.Connection.client
+      (Tcp.Where_to_connect.of_host_and_port {host="localhost"; port})
+      ~implementations
     |> Deferred.Or_error.of_exn_result
   in
   let%bind (r_pipe, _) =

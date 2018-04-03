@@ -62,11 +62,87 @@ let implementations =
   in
   Rpc.Implementations.create_exn ~implementations ~on_unknown_rpc:`Close_connection
 
+let respond_with_string reqd str =
+  let open Httpaf in
+  let response =
+    Response.create `OK
+      ~headers:(Headers.of_list [
+          ("content-length", String.length str |> Int.to_string)
+        ])
+  in
+  let body = Reqd.respond_with_streaming reqd response in
+  Body.write_string body str;
+  Body.close body
+
+let start_http_server ~port state_ref =
+  let open Httpaf in
+  let request_handler _ reqd =
+    let state = !state_ref in
+    let request = Reqd.request reqd in
+    let target =
+      String.strip ~drop:(Char.equal '/') request.target
+      |> String.split ~on:'/'
+    in
+    match (request.meth, target) with
+    | (`GET, ["graph.png"]) ->
+      let data = State.to_dot_format state in
+      let%bind p = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tpng"] () in
+      let%bind o = Async_unix.Process.collect_stdout_and_wait p in
+      printf "%d\n" (String.length o);
+      respond_with_string reqd o;
+      return ()
+    | (`GET, [""]) ->
+      let str =
+        let open Html in
+        html [head []; body [
+            text "Here it is:";
+            img ~attrs:[src "/graph.png"; alt "network graph"] [];
+          ]]
+        |> to_string
+      in
+      respond_with_string reqd str;
+      return ()
+    | _ ->
+      let str =
+        sprintf "unknown: %s"
+          ([%sexp_of: string list] target
+           |> Sexp.to_string)
+      in
+      respond_with_string reqd str;
+      return ()
+  in
+  let request_handler a b =
+    don't_wait_for (
+      request_handler a b
+      |> Deferred.map ~f:(function
+          | Ok () -> ()
+          | Error err -> printf !"%{Error#hum}\n" err)
+    )
+  in
+  let error_handler _ ?request error start_response =
+    let response_body = start_response Headers.empty in
+    begin
+      match error with
+      | `Exn exn ->
+        Body.write_string response_body (Exn.to_string exn)
+      | #Status.standard as error ->
+        Body.write_string response_body (Status.default_reason_phrase error)
+    end;
+    Body.write_string response_body "\n";
+    Body.close response_body
+  in
+  Tcp.Server.create_sock
+    ~on_handler_error:`Raise
+    (Tcp.Where_to_listen.of_port port)
+    (Httpaf_async.Server.create_connection_handler ~request_handler ~error_handler)
+
 let run_server_command =
   let open Command.Let_syntax in
   Command.async_or_error ~summary:"start the server"
     [%map_open
-      let () = return ()
+      let http_port =
+        flag "-http-port" (optional_with_default 8080 int)
+          ~doc:"INT http port"
       in
       fun () ->
         let open Deferred.Or_error.Let_syntax in
@@ -79,8 +155,15 @@ let run_server_command =
             ~initial_connection_state:(fun _ conn -> (state_ref, w_bag, conn))
           |> Deferred.ok
         in
-        Tcp.Server.close_finished server
-        |> Deferred.ok
+        let%bind http_server = start_http_server ~port:http_port state_ref |> Deferred.ok in
+        let error_after_close server type_ =
+          let%bind () = Tcp.Server.close_finished server |> Deferred.ok in
+          Deferred.Or_error.errorf "%s closed unexpectedly" type_
+        in
+        Deferred.any [
+          error_after_close server "rpc server";
+          error_after_close http_server "http server";
+        ]
     ]
 
 let init_command =

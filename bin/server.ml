@@ -4,12 +4,22 @@ open Sdn_local_protocol
 
 open Deferred.Or_error.Let_syntax
 
-let update (state, _, _) ~f =
+module Message_log = struct
+  type t = {
+    from : Node.Id.t * int;
+    to_  : Node.Id.t * int;
+    sent : char list;
+    received : char list list;
+    delivered : bool;
+  } [@@deriving sexp_of]
+end
+
+let update (state, _, _, _) ~f =
   let%bind new_state = Deferred.return (f !state) in
   state := new_state;
   State.save !state
 
-let register_connection ((state : State.t ref), w_bag, conn) id =
+let register_connection ((state : State.t ref), w_bag, messages, conn) id =
   let%bind () =
     if Bag.exists w_bag ~f:(fun (_, id') -> Node.Id.equal id id') then
       Deferred.Or_error.error_s [%message "already connected" (id : Node.Id.t)]
@@ -39,11 +49,22 @@ let register_connection ((state : State.t ref), w_bag, conn) id =
                   data;
                 })
           in
+          let delivered = ref false in
           Bag.iter w_bag ~f:(fun (w_pipe, id) ->
               if Node.Id.equal id to_id then
+                delivered := true;
                 List.iter to_msgs ~f:(fun to_msg ->
                     Pipe.write_if_open w_pipe to_msg
-                    |> don't_wait_for))))
+                    |> don't_wait_for));
+          Queue.enqueue messages
+            { Message_log.
+              from = (id, from_msg.port)
+            ; to_ = (to_id, to_port)
+            ; sent = from_msg.data
+            ; received = List.map to_msgs ~f:(fun msg -> msg.data)
+            ; delivered = !delivered
+            };
+        ))
   |> don't_wait_for;
   return ret_pipe
 
@@ -74,7 +95,7 @@ let respond_with_string reqd str =
   Body.write_string body str;
   Body.close body
 
-let start_http_server ~port state_ref =
+let start_http_server ~port state_ref messages =
   let open Httpaf in
   let request_handler _ reqd =
     let state = !state_ref in
@@ -88,15 +109,25 @@ let start_http_server ~port state_ref =
       let data = State.to_dot_format state in
       let%bind p = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tpng"] () in
       let%bind o = Async_unix.Process.collect_stdout_and_wait p in
-      printf "%d\n" (String.length o);
       respond_with_string reqd o;
       return ()
     | (`GET, [""]) ->
       let str =
         let open Html in
+        let message_html =
+          Queue.to_list messages
+          |> List.map ~f:(fun message ->
+              div [
+                Message_log.sexp_of_t message
+                |> Sexp.to_string
+                |> text
+              ])
+          |> div
+        in
         html [head []; body [
             text "Here it is:";
             img ~attrs:[src "/graph.png"; alt "network graph"] [];
+            message_html;
           ]]
         |> to_string
       in
@@ -149,13 +180,16 @@ let run_server_command =
         let%bind state = State.load () in
         let state_ref = ref state in
         let w_bag = Bag.create () in
+        let messages = Queue.create () in
         let where_to_listen = Tcp.Where_to_listen.of_port state.server_port in
         let%bind server =
           Rpc.Connection.serve ~implementations () ~where_to_listen
-            ~initial_connection_state:(fun _ conn -> (state_ref, w_bag, conn))
+            ~initial_connection_state:(fun _ conn -> (state_ref, w_bag, messages, conn))
           |> Deferred.ok
         in
-        let%bind http_server = start_http_server ~port:http_port state_ref |> Deferred.ok in
+        let%bind http_server =
+          start_http_server ~port:http_port state_ref messages |> Deferred.ok
+        in
         let error_after_close server type_ =
           let%bind () = Tcp.Server.close_finished server |> Deferred.ok in
           Deferred.Or_error.errorf "%s closed unexpectedly" type_

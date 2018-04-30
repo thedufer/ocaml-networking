@@ -1,7 +1,7 @@
 (jbuild_version 1)
 
 (executables (
-  (names (main example))
+  (names (main))
   (libraries (async core httpaf-async sdn_local_protocol))
   (preprocess (pps (ppx_jane)))
   ))

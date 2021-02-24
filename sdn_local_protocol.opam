@@ -6,10 +6,22 @@ bug-reports: "https://github.com/thedufer/ocaml-networking/issues"
 dev-repo: "git+https://github.com/thedufer/ocaml-networking.git"
 license: "BSD-3-clause"
 build: [
+  ["dune" "subst"] {pinned}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
+  ]
   ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 depends: [
-  "jbuilder" {build & >= "1.0+beta12"}
+  "dune" {build & >= "2.6"}
   "core"
   "async"
 ]

@@ -1,0 +1,11 @@
+(executables
+ (modes byte exe)
+ (names main)
+ (libraries async core httpaf-async sdn_local_protocol)
+ (preprocess
+  (pps ppx_jane)))
+
+(install
+ (section bin)
+ (files
+  (main.exe as sdn-local)))

@@ -93,7 +93,7 @@ let respond_with_string reqd str =
   in
   let body = Reqd.respond_with_streaming reqd response in
   Body.write_string body str;
-  Body.close body
+  Body.close_writer body
 
 let start_http_server ~port state_ref messages =
   let open Httpaf in
@@ -150,7 +150,7 @@ let start_http_server ~port state_ref messages =
           | Error err -> printf !"%{Error#hum}\n" err)
     )
   in
-  let error_handler _ ?request error start_response =
+  let error_handler _ ?request:_ error start_response =
     let response_body = start_response Headers.empty in
     begin
       match error with
@@ -160,7 +160,7 @@ let start_http_server ~port state_ref messages =
         Body.write_string response_body (Status.default_reason_phrase error)
     end;
     Body.write_string response_body "\n";
-    Body.close response_body
+    Body.close_writer response_body
   in
   Tcp.Server.create_sock
     ~on_handler_error:`Raise

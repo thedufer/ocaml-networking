@@ -1,4 +1,4 @@
-open Core
+open! Core
 
 val bools_to_char : bool list -> char
 val char_to_bools : char -> bool list

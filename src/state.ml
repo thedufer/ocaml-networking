@@ -106,8 +106,9 @@ let to_dot_format t =
       )
   in
   let edges =
-    List.map t.connections ~f:(fun {node1; port1; node2; port2} ->
-        sprintf !"  %{Node.Id}%d -- %{Node.Id}%d;" node1 port1 node2 port2)
+    List.map t.connections
+      ~f:(fun {node1; port1; node2; port2; transformations = _; extra_bits = _} ->
+          sprintf !"  %{Node.Id}%d -- %{Node.Id}%d;" node1 port1 node2 port2)
   in
   String.concat ~sep:"\n" @@
   ["graph network {"] @

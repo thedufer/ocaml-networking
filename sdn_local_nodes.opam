@@ -6,10 +6,10 @@ bug-reports: "https://github.com/thedufer/ocaml-networking-nodes/issues"
 dev-repo: "git+https://github.com/thedufer/ocaml-networking-nodes.git"
 license: "BSD-3-clause"
 build: [
-  ["jbuilder" "build" "-p" name "-j" jobs]
+  ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
-  "jbuilder" {build & >= "1.0+beta12"}
+  "dune" {build & >= "1.0"}
   "core"
   "async"
   "sdn_local_protocol"

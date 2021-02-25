@@ -75,7 +75,7 @@ module Reading = struct
     | Start -> begin
         let result =
           find_prefix t.queue bits ~length:(List.length header_bits)
-            ~f:(List.equal ~equal:Bool.equal header_bits)
+            ~f:(List.equal Bool.equal header_bits)
         in
         match result with
         | None -> (t, packets)
@@ -115,7 +115,7 @@ module Reading = struct
           assert (List.is_empty extra_bits);
           let crc' = List.map lists ~f:Util.bools_to_char in
           let packets =
-            if List.equal ~equal:Char.equal crc crc' then
+            if List.equal Char.equal crc crc' then
               data :: packets
             else
               packets
@@ -135,7 +135,7 @@ let reader pipe =
         Hashtbl.find_or_add states msg.port ~default:(fun () -> Reading.start ())
       in
       let (state, result) = Reading.process_bits state bits in
-      Hashtbl.update states msg.port (const state);
+      Hashtbl.update states msg.port ~f:(const state);
       List.map result ~f:(fun data -> {msg with data})
     )
   |> don't_wait_for;

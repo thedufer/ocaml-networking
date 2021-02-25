@@ -37,8 +37,8 @@ let make_port_command ~summary ~param r_transform w_transform =
 
 let make_port_command_simple ~summary r_transform w_transform =
   make_port_command ~summary ~param:(Command.Param.return ())
-    (fun ~me () -> r_transform)
-    (fun ~me () -> w_transform)
+    (fun ~me:_ () -> r_transform)
+    (fun ~me:_ () -> w_transform)
 
 let passthrough_command =
   make_port_command_simple ~summary:"stdout/stdin with no processing"
@@ -71,7 +71,7 @@ let switch_command =
       let id = anon ("NODE-ID" %: string)
       in fun () ->
         let open Deferred.Or_error.Let_syntax in
-        let%bind (r, w, me, ports) = Helper.connect (Node.Id.of_string id) in
+        let%bind (r, w, _me, ports) = Helper.connect (Node.Id.of_string id) in
         let r = Layer_two.reader r in
         let w = Layer_two.writer w in
         let r =

@@ -52,10 +52,10 @@ let register_connection ((state : State.t ref), w_bag, messages, conn) id =
           let delivered = ref false in
           Bag.iter w_bag ~f:(fun (w_pipe, id) ->
               if Node.Id.equal id to_id then
-                delivered := true;
-                List.iter to_msgs ~f:(fun to_msg ->
-                    Pipe.write_if_open w_pipe to_msg
-                    |> don't_wait_for));
+                (delivered := true;
+                 List.iter to_msgs ~f:(fun to_msg ->
+                     Pipe.write_if_open w_pipe to_msg
+                     |> don't_wait_for)));
           Queue.enqueue messages
             { Message_log.
               from = (id, from_msg.port)

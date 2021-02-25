@@ -18,12 +18,12 @@ build: [
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
-  ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 depends: [
   "dune" {build & >= "2.6"}
   "core"
   "async"
+  "httpaf-async"
 ]
 available: [ ocaml-version >= "4.04.1" ]
 descr: "

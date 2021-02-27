@@ -91,12 +91,18 @@ let start_http_server ~port state_ref messages =
       |> String.split ~on:'/'
     in
     match (request.meth, target) with
-    | (`GET, ["graph.png"]) ->
+    | (`GET, ["graph.dot"]) ->
       let data = State.to_dot_format state in
-      let%bind p = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tpng"] () in
+      Httpaf_caged.Server.respond_string data |> Deferred.ok
+    | (`GET, ["graph.svg"]) ->
+      let data = State.to_dot_format state in
+      let%bind p = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tsvg"] () in
       let%bind o = Async_unix.Process.collect_stdout_and_wait p in
       Httpaf_caged.Server.respond_string o |> Deferred.ok
     | (`GET, [""]) ->
+      let data = State.to_dot_format state in
+      let%bind dot_proc = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tsvg"] () in
+      let%bind svg_graph = Async_unix.Process.collect_stdout_and_wait dot_proc in
       let str =
         let open Html in
         let message_html =
@@ -111,7 +117,7 @@ let start_http_server ~port state_ref messages =
         in
         html [head []; body [
             text "Here it is:";
-            img ~attrs:[src "/graph.png"; alt "network graph"] [];
+            raw svg_graph;
             message_html;
           ]]
         |> to_string

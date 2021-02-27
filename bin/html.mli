@@ -21,4 +21,6 @@ val img : tag
 val src : string -> Attr.t
 val alt : string -> Attr.t
 
+val raw : string -> t
+
 val to_string : t -> string

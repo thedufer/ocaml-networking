@@ -9,6 +9,7 @@ end
 type t =
   | Tag of {name: string; attrs : Attr.t list; children: t list}
   | Text of string
+  | Raw of string
 
 type tag = ?attrs:Attr.t list -> t list -> t
 
@@ -26,8 +27,13 @@ let img = tag "img"
 let src value = ("src", value)
 let alt value = ("alt", value)
 
+let raw s = Raw s
+
 let rec to_string = function
-  | Text text -> text
+  | Raw s -> s
+  | Text text ->
+    (* TODO this should be escaped, probably *)
+    text
   | Tag {name; attrs; children} ->
     sprintf "<%s %s>%s</%s>"
       name

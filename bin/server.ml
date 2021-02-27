@@ -83,23 +83,9 @@ let implementations =
   in
   Rpc.Implementations.create_exn ~implementations ~on_unknown_rpc:`Close_connection
 
-let respond_with_string reqd str =
-  let open Httpaf in
-  let response =
-    Response.create `OK
-      ~headers:(Headers.of_list [
-          ("content-length", String.length str |> Int.to_string)
-        ])
-  in
-  let body = Reqd.respond_with_streaming reqd response in
-  Body.write_string body str;
-  Body.close_writer body
-
 let start_http_server ~port state_ref messages =
-  let open Httpaf in
-  let request_handler _ reqd =
+  let request_handler ~body:_ (request:Httpaf_caged.Request.t) =
     let state = !state_ref in
-    let request = Reqd.request reqd in
     let target =
       String.strip ~drop:(Char.equal '/') request.target
       |> String.split ~on:'/'
@@ -109,8 +95,7 @@ let start_http_server ~port state_ref messages =
       let data = State.to_dot_format state in
       let%bind p = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tpng"] () in
       let%bind o = Async_unix.Process.collect_stdout_and_wait p in
-      respond_with_string reqd o;
-      return ()
+      Httpaf_caged.Server.respond_string o |> Deferred.ok
     | (`GET, [""]) ->
       let str =
         let open Html in
@@ -131,26 +116,25 @@ let start_http_server ~port state_ref messages =
           ]]
         |> to_string
       in
-      respond_with_string reqd str;
-      return ()
+      Httpaf_caged.Server.respond_string str |> Deferred.ok
     | _ ->
       let str =
         sprintf "unknown: %s"
           ([%sexp_of: string list] target
            |> Sexp.to_string)
       in
-      respond_with_string reqd str;
-      return ()
+      Httpaf_caged.Server.respond_string str |> Deferred.ok
   in
-  let request_handler a b =
-    don't_wait_for (
-      request_handler a b
-      |> Deferred.map ~f:(function
-          | Ok () -> ()
-          | Error err -> printf !"%{Error#hum}\n" err)
-    )
+  let request_handler ~body _sock req =
+    match%bind.Deferred request_handler ~body req with
+    | Ok response -> Deferred.return response
+    | Error err ->
+      Httpaf_caged.Server.respond_string
+        ~status:`Internal_server_error
+        (sprintf !"%{Error#hum}\n" err)
   in
-  let error_handler _ ?request:_ error start_response =
+  let on_handler_error _ ?request:_ error start_response =
+    let open Httpaf in
     let response_body = start_response Headers.empty in
     begin
       match error with
@@ -162,10 +146,10 @@ let start_http_server ~port state_ref messages =
     Body.write_string response_body "\n";
     Body.close_writer response_body
   in
-  Tcp.Server.create_sock
-    ~on_handler_error:`Raise
+  Httpaf_caged.Server.create
+    ~on_handler_error
     (Tcp.Where_to_listen.of_port port)
-    (Httpaf_async.Server.create_connection_handler ~request_handler ~error_handler)
+    request_handler
 
 let run_server_command =
   let open Command.Let_syntax in

@@ -1,7 +1,7 @@
 (executables
  (modes byte exe)
  (names main)
- (libraries async core httpaf-async sdn_local_protocol)
+ (libraries async core httpaf_caged sdn_local_protocol)
  (preprocess
   (pps ppx_jane)))
 

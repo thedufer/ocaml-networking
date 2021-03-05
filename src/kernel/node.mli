@@ -1,4 +1,4 @@
-open! Core
+open! Core_kernel
 
 module Id : sig
   type t [@@deriving bin_io, compare, sexp]

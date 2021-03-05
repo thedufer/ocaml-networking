@@ -1,5 +1,6 @@
 open! Core
 open Async
+open Sdn_local_protocol_kernel
 
 val connect
   :  Node.Id.t

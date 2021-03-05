@@ -1,6 +1,6 @@
 open Core
 open Async
-
+open Sdn_local_protocol_kernel
 open Deferred.Or_error.Let_syntax
 
 let implementations pipe =

@@ -1,4 +1,4 @@
-open Core
+open Core_kernel
 
 let char_to_bools c =
   let c = Char.to_int c in

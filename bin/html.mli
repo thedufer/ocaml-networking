@@ -17,6 +17,7 @@ val head : tag
 val body : tag
 val div : tag
 val img : tag
+val script : tag
 
 val src : string -> Attr.t
 val alt : string -> Attr.t

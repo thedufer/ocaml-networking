@@ -1,0 +1,6 @@
+(executables
+ (names main)
+ (libraries async_js async_kernel core_kernel sdn_local_protocol_kernel)
+ (modes js)
+ (js_of_ocaml)
+ (preprocess (pps ppx_jane js_of_ocaml-ppx)))

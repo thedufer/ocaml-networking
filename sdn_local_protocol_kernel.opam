@@ -1,0 +1,30 @@
+opam-version: "1.2"
+maintainer: "Aaron Dufour <thedufer@gmail.com>"
+authors: ["Aaron Dufour <thedufer@gmail.com>"]
+homepage: "https://github.com/thedufer/ocaml-networking"
+bug-reports: "https://github.com/thedufer/ocaml-networking/issues"
+dev-repo: "git+https://github.com/thedufer/ocaml-networking.git"
+license: "BSD-3-clause"
+build: [
+  ["dune" "subst"] {pinned}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+  "@doc" {with-doc}
+  ]
+]
+depends: [
+  "dune" {build & >= "2.6"}
+  "core_kernel"
+  "async_kernel"
+]
+available: [ ocaml-version >= "4.04.1" ]
+    descr: "
+TODO
+"

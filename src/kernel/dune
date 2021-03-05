@@ -1,0 +1,5 @@
+(library
+ (name sdn_local_protocol_kernel)
+ (public_name sdn_local_protocol_kernel)
+ (libraries core_kernel async_kernel)
+ (preprocess (pps ppx_jane)))

@@ -23,6 +23,7 @@ let head = tag "head"
 let body = tag "body"
 let div  = tag "div"
 let img = tag "img"
+let script = tag "script"
 
 let src value = ("src", value)
 let alt value = ("alt", value)

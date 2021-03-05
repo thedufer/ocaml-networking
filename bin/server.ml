@@ -1,18 +1,7 @@
 open! Core
 open! Async
 open Sdn_local_protocol
-
 open Deferred.Or_error.Let_syntax
-
-module Message_log = struct
-  type t = {
-    from : Node.Id.t * int;
-    to_  : Node.Id.t * int;
-    sent : char list;
-    received : char list list;
-    delivered : bool;
-  } [@@deriving sexp_of]
-end
 
 let update (state, _, _, _) ~f =
   let%bind new_state = Deferred.return (f !state) in
@@ -56,7 +45,7 @@ let register_connection ((state : State.t ref), w_bag, messages, conn) id =
                  List.iter to_msgs ~f:(fun to_msg ->
                      Pipe.write_if_open w_pipe to_msg
                      |> don't_wait_for)));
-          Queue.enqueue messages
+          Pipe_buffer.write_without_pushback messages
             { Message_log.
               from = (id, from_msg.port)
             ; to_ = (to_id, to_port)
@@ -83,80 +72,6 @@ let implementations =
   in
   Rpc.Implementations.create_exn ~implementations ~on_unknown_rpc:`Close_connection
 
-let start_http_server ~port state_ref messages =
-  let request_handler ~body:_ (request:Httpaf_caged.Request.t) =
-    let state = !state_ref in
-    let target =
-      String.strip ~drop:(Char.equal '/') request.target
-      |> String.split ~on:'/'
-    in
-    match (request.meth, target) with
-    | (`GET, ["graph.dot"]) ->
-      let data = State.to_dot_format state in
-      Httpaf_caged.Server.respond_string data |> Deferred.ok
-    | (`GET, ["graph.svg"]) ->
-      let data = State.to_dot_format state in
-      let%bind p = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tsvg"] () in
-      let%bind o = Async_unix.Process.collect_stdout_and_wait p in
-      Httpaf_caged.Server.respond_string o |> Deferred.ok
-    | (`GET, [""]) ->
-      let data = State.to_dot_format state in
-      let%bind dot_proc = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tsvg"] () in
-      let%bind svg_graph = Async_unix.Process.collect_stdout_and_wait dot_proc in
-      let str =
-        let open Html in
-        let message_html =
-          Queue.to_list messages
-          |> List.map ~f:(fun message ->
-              div [
-                Message_log.sexp_of_t message
-                |> Sexp.to_string
-                |> text
-              ])
-          |> div
-        in
-        html [head []; body [
-            text "Here it is:";
-            raw svg_graph;
-            message_html;
-          ]]
-        |> to_string
-      in
-      Httpaf_caged.Server.respond_string str |> Deferred.ok
-    | _ ->
-      let str =
-        sprintf "unknown: %s"
-          ([%sexp_of: string list] target
-           |> Sexp.to_string)
-      in
-      Httpaf_caged.Server.respond_string str |> Deferred.ok
-  in
-  let request_handler ~body _sock req =
-    match%bind.Deferred request_handler ~body req with
-    | Ok response -> Deferred.return response
-    | Error err ->
-      Httpaf_caged.Server.respond_string
-        ~status:`Internal_server_error
-        (sprintf !"%{Error#hum}\n" err)
-  in
-  let on_handler_error _ ?request:_ error start_response =
-    let open Httpaf in
-    let response_body = start_response Headers.empty in
-    begin
-      match error with
-      | `Exn exn ->
-        Body.write_string response_body (Exn.to_string exn)
-      | #Status.standard as error ->
-        Body.write_string response_body (Status.default_reason_phrase error)
-    end;
-    Body.write_string response_body "\n";
-    Body.close_writer response_body
-  in
-  Httpaf_caged.Server.create
-    ~on_handler_error
-    (Tcp.Where_to_listen.of_port port)
-    request_handler
-
 let run_server_command =
   let open Command.Let_syntax in
   Command.async_or_error ~summary:"start the server"
@@ -170,7 +85,7 @@ let run_server_command =
         let%bind state = State.load () in
         let state_ref = ref state in
         let w_bag = Bag.create () in
-        let messages = Queue.create () in
+        let messages = Pipe_buffer.create ~size:20 in
         let where_to_listen = Tcp.Where_to_listen.of_port state.server_port in
         let%bind server =
           Rpc.Connection.serve ~implementations () ~where_to_listen
@@ -178,7 +93,7 @@ let run_server_command =
           |> Deferred.ok
         in
         let%bind http_server =
-          start_http_server ~port:http_port state_ref messages |> Deferred.ok
+          Web_server.start ~port:http_port state_ref messages |> Deferred.ok
         in
         let error_after_close server type_ =
           let%bind () = Tcp.Server.close_finished server |> Deferred.ok in

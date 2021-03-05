@@ -1,4 +1,4 @@
-open! Core
+open! Core_kernel
 
 module Id = struct
   type t = string [@@deriving bin_io, compare, sexp]

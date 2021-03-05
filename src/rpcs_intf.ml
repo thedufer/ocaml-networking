@@ -1,5 +1,6 @@
 open Core
 open Async
+open Sdn_local_protocol_kernel
 
 module type S = sig
   type query

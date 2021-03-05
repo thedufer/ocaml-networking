@@ -6,6 +6,7 @@
   (pps ppx_jane)))
 
 (install
+ (package sdn_local_protocol)
  (section bin)
  (files
   (main.exe as sdn-local)))

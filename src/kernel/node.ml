@@ -1,10 +1,25 @@
 open! Core_kernel
 
 module Id = struct
-  type t = string [@@deriving bin_io, compare, sexp]
+  module T = struct
+    type t = string [@@deriving bin_io, compare]
 
-  let of_string x = x
-  let to_string x = x
+    let char_allowed = function
+      | 'a'..'z'
+      | 'A'..'Z'
+      | '0'..'9'
+      | '-' -> true
+      | _ -> false
+
+    let of_string x =
+      if not (String.for_all x ~f:char_allowed) then
+        raise_s [%message "node ids can only contain letters, numbers, and dashes"];
+      x
+    let to_string x = x
+  end
+
+  include T
+  include Sexpable.Of_stringable (T)
 
   let equal = String.equal
 end

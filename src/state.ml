@@ -39,8 +39,8 @@ let drop_node t (id : Node.Id.t) =
     in
     let connections =
       List.filter t.connections ~f:(fun connection ->
-          not (Node.Id.equal connection.node1 id ||
-               Node.Id.equal connection.node2 id))
+          not (Node.Id.equal connection.id.node1 id ||
+               Node.Id.equal connection.id.node2 id))
     in
     Ok {t with nodes; connections}
   else
@@ -48,8 +48,8 @@ let drop_node t (id : Node.Id.t) =
 
 let add_connection t (connection : Connection.t) =
   let%bind () =
-    if Node.Id.equal connection.node1 connection.node2 &&
-       Int.equal connection.port1 connection.port2 then
+    if Node.Id.equal connection.id.node1 connection.id.node2 &&
+       Int.equal connection.id.port1 connection.id.port2 then
       Or_error.error_s [%message "can't connect port to itself"]
     else
       Ok ()
@@ -75,17 +75,20 @@ let add_connection t (connection : Connection.t) =
       else
         Ok ()
     in
-    let%bind () = test_end connection.node1 connection.port1 in
-    test_end connection.node2 connection.port2
+    let%bind () = test_end connection.id.node1 connection.id.port1 in
+    test_end connection.id.node2 connection.id.port2
   in
   let connections = connection :: t.connections in
   Ok {t with connections}
 
 let drop_connection t connection =
-  if List.mem ~equal:Connection.same_ports t.connections connection then
+  let conn_equal_id =
+    Comparable.lift ~f:(fun conn -> conn.Connection.id) [%compare.equal: Connection.Id.t]
+  in
+  if List.mem ~equal:conn_equal_id t.connections connection then
     let connections =
       List.filter t.connections ~f:(fun connection' ->
-          not (Connection.same_ports connection connection'))
+          not (conn_equal_id connection connection'))
     in
     Ok {t with connections}
   else
@@ -109,7 +112,7 @@ let to_dot_format t =
   in
   let edges =
     List.map t.connections
-      ~f:(fun {node1; port1; node2; port2; transformations = _; extra_bits = _} ->
+      ~f:(fun {id = {node1; port1; node2; port2}; transformations = _; extra_bits = _} ->
           sprintf !"  %{Node.Id}%d -- %{Node.Id}%d [id=\"%{Node.Id}%d-%{Node.Id}%d\"];" node1 port1 node2 port2 node1 port1 node2 port2)
   in
   String.concat ~sep:"\n" @@

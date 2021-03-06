@@ -78,11 +78,9 @@ let add_connection_command =
         let extra_bits = ref [] in
         Connection.Transformations.init_extra_bits transformations extra_bits;
         let new_connection =
+          let id = Connection.Id.create id1 port1 id2 port2 in
           { Connection.
-            node1 = id1;
-            port1;
-            node2 = id2;
-            port2;
+            id;
             extra_bits;
             transformations;
           }
@@ -115,13 +113,10 @@ let drop_connection_command =
         let%bind state = State.load () in
         let id1 = Node.Id.of_string id1 in
         let id2 = Node.Id.of_string id2 in
-        (* TODO perhaps a type that holds just the endpoints of the connection *)
         let new_connection =
+          let id = Connection.Id.create id1 port1 id2 port2 in
           { Connection.
-            node1 = id1;
-            port1;
-            node2 = id2;
-            port2;
+            id;
             extra_bits = ref [];
             transformations = Connection.Transformations.empty;
           }

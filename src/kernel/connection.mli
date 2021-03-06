@@ -1,5 +1,16 @@
 open Core_kernel
 
+module Id : sig
+  type t = private {
+    node1 : Node.Id.t;
+    port1 : int;
+    node2 : Node.Id.t;
+    port2 : int;
+  } [@@deriving compare]
+
+  val create : Node.Id.t -> int -> Node.Id.t -> int -> t
+end
+
 module Transformations : sig
   type t
 
@@ -20,17 +31,12 @@ module Transformations : sig
 end
 
 type t = {
-  node1 : Node.Id.t;
-  port1 : int;
-  node2 : Node.Id.t;
-  port2 : int;
+  id : Id.t;
   transformations : Transformations.t;
   extra_bits : bool list ref;
 } [@@deriving bin_io, sexp]
 
 val equal : t -> t -> bool
-
-val same_ports : t -> t -> bool
 
 val uses_port : t -> Node.Id.t * int -> bool
 

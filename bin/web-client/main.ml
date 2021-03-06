@@ -1,5 +1,6 @@
 open! Core_kernel
 open Async_kernel
+open Sdn_local_protocol_kernel
 open Js_of_ocaml
 
 let sse () =
@@ -22,8 +23,9 @@ let start () =
     |> Option.value_exn
   in
   don't_wait_for (Pipe.iter_without_pushback messages ~f:(fun msg ->
+      let msg = Message_log.t_of_sexp (Sexp.of_string msg) in
       let new_node = Dom_html.document##createElement (Js.string "div") in
-      new_node##.textContent := (Js.string msg |> Js.Opt.return);
+      new_node##.textContent := (Js.string (Sexp.to_string (Message_log.sexp_of_t msg)) |> Js.Opt.return);
       Dom.appendChild container new_node));
   Async_js.init ()
 

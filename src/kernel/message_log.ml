@@ -6,4 +6,4 @@ type t = {
   sent : char list;
   received : char list list;
   delivered : bool;
-} [@@deriving sexp_of]
+} [@@deriving sexp]

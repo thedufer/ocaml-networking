@@ -87,30 +87,42 @@ module Transformations = struct
     rewindowed
 end
 
+module Id = struct
+  type t = {
+    node1 : Node.Id.t;
+    port1 : int;
+    node2 : Node.Id.t;
+    port2 : int;
+  } [@@deriving bin_io, compare, sexp]
+
+  let create nodea porta nodeb portb =
+    if [%compare: Node.Id.t * int] (nodea, porta) (nodeb, portb) >= 0 then
+      {node1 = nodea; port1 = porta; node2 = nodeb; port2 = portb}
+    else
+      {node1 = nodeb; port1 = portb; node2 = nodea; port2 = porta}
+
+  let uses_port t (id, port) =
+    (Node.Id.equal id t.node1 &&
+     Int.equal port t.port1
+    ) ||
+    (Node.Id.equal id t.node2 &&
+     Int.equal port t.port2)
+end
+
 type t = {
-  node1 : Node.Id.t;
-  port1 : int;
-  node2 : Node.Id.t;
-  port2 : int;
+  id : Id.t;
   transformations : Transformations.t;
   extra_bits : bool list ref;
 } [@@deriving bin_io, compare, sexp]
 
-let uses_port t (id, port) =
-  (Node.Id.equal id t.node1 &&
-   Int.equal port t.port1
-  ) ||
-  (Node.Id.equal id t.node2 &&
-   Int.equal port t.port2)
+let uses_port t (id, port) = Id.uses_port t.id (id, port)
 
 let equal = [%compare.equal: t]
-
-let same_ports t1 t2 = uses_port t1 (t2.node1, t2.port1) && uses_port t1 (t2.node2, t2.port2)
 
 let get_connected_port_and_connection ts (id, port) =
   List.find ts ~f:(fun t -> uses_port t (id, port))
   |> Option.map ~f:(fun connection ->
-      if Node.Id.equal connection.node1 id then
-        (connection.node2, connection.port2, connection)
+      if Node.Id.equal connection.id.node1 id then
+        (connection.id.node2, connection.id.port2, connection)
       else
-        (connection.node1, connection.port1, connection))
+        (connection.id.node1, connection.id.port1, connection))

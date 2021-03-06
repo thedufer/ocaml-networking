@@ -9,6 +9,8 @@ module Id : sig
   } [@@deriving compare]
 
   val create : Node.Id.t -> int -> Node.Id.t -> int -> t
+
+  val to_html_id : t -> string
 end
 
 module Transformations : sig

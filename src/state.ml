@@ -99,7 +99,7 @@ let to_dot_format t =
     List.concat_map t.nodes ~f:(fun node ->
         let port_nodes =
           List.init node.ports ~f:(fun port ->
-              sprintf !"    %{Node.Id}%d [label=\"%d\" id=\"%{Node.Id}%d\"];" node.id port port node.id port)
+              sprintf !"    %{Node.Id}%d [label=\"%d\" id=\"%{Node.Id}-%d\"];" node.id port port node.id port)
         in
         [sprintf !"  subgraph cluster_%{Node.Id} {" node.id] @
         [sprintf !"    id=%{Node.Id};" node.id] @
@@ -112,8 +112,8 @@ let to_dot_format t =
   in
   let edges =
     List.map t.connections
-      ~f:(fun {id = {node1; port1; node2; port2}; transformations = _; extra_bits = _} ->
-          sprintf !"  %{Node.Id}%d -- %{Node.Id}%d [id=\"%{Node.Id}%d-%{Node.Id}%d\"];" node1 port1 node2 port2 node1 port1 node2 port2)
+      ~f:(fun {id = {node1; port1; node2; port2} as id; transformations = _; extra_bits = _} ->
+          sprintf !"  %{Node.Id}%d -- %{Node.Id}%d [id=\"%s\"];" node1 port1 node2 port2 (Connection.Id.to_html_id id))
   in
   String.concat ~sep:"\n" @@
   ["graph network {"] @

@@ -8,12 +8,12 @@ module Id = struct
       | 'a'..'z'
       | 'A'..'Z'
       | '0'..'9'
-      | '-' -> true
+      | '_' -> true
       | _ -> false
 
     let of_string x =
       if not (String.for_all x ~f:char_allowed) then
-        raise_s [%message "node ids can only contain letters, numbers, and dashes"];
+        raise_s [%message "node ids can only contain letters, numbers, and underscores"];
       x
     let to_string x = x
   end

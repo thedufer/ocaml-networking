@@ -107,6 +107,9 @@ module Id = struct
     ) ||
     (Node.Id.equal id t.node2 &&
      Int.equal port t.port2)
+
+  let to_html_id {node1; port1; node2; port2} =
+    sprintf !"%{Node.Id}-%d-%{Node.Id}-%d" node1 port1 node2 port2
 end
 
 type t = {

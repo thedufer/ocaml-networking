@@ -21,7 +21,7 @@ let sse_updates (headers : Httpaf.Headers.t) messages =
     let string_pipe =
       let data =
         Pipe.map messages_pipe ~f:(fun update ->
-            sprintf !"data: %{sexp: Message_log.t}\r\n\r\n" update)
+            sprintf !"data: %{Sexp#mach}\r\n\r\n" (Message_log.sexp_of_t update))
       in
       let keepalives =
         let r, w = Pipe.create () in

@@ -25,7 +25,10 @@ let start () =
   don't_wait_for (Pipe.iter_without_pushback messages ~f:(fun msg ->
       let msg = Message_log.t_of_sexp (Sexp.of_string msg) in
       let new_node = Dom_html.document##createElement (Js.string "div") in
-      new_node##.textContent := (Js.string (Sexp.to_string (Message_log.sexp_of_t msg)) |> Js.Opt.return);
+      let content =
+        sprintf !"%{Node.Id}#%d->%{Node.Id}#%d: %s" (fst msg.from) (snd msg.from) (fst msg.to_) (snd msg.to_) (String.of_char_list msg.sent)
+      in
+      new_node##.textContent := (Js.string content |> Js.Opt.return);
       Dom.appendChild container new_node));
   Async_js.init ()
 

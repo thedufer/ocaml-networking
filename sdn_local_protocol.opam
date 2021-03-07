@@ -25,6 +25,7 @@ depends: [
   "async"
   "httpaf_caged" {>= "1.0.1"}
   "httpaf-async"
+  "sdn_local_protocol_kernel"
 ]
 available: [ ocaml-version >= "4.04.1" ]
 descr: "

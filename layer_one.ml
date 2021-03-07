@@ -40,7 +40,7 @@ let find_prefix q new_bits ~length ~f =
       Some (`Remaining_bits new_bits, `Prefix prefix)
     end else begin
       if Int.equal (Queue.length q) length then
-        ignore (Queue.dequeue q);
+        ignore (Queue.dequeue q : bool option);
       match new_bits with
       | [] -> None
       | x :: xs ->

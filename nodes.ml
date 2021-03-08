@@ -48,20 +48,32 @@ let layer_one_command =
   make_port_command_simple ~summary:"stdout/stdin via layer 1 frames"
     Layer_one.reader Layer_one.writer
 
-let layer_two_command =
+let layer_two_direct_command =
   make_port_command ~summary:"stdout/stdin via layer 2 frames"
-    ~param:Command.Param.(anon ("ADDR" %: Address.arg_type))
+    ~param:Command.Param.(anon ("DEST-ADDR" %: Address.arg_type))
     (fun ~me dest r ->
        Pipe.filter_map (Layer_two.reader r) ~f:(fun {msg; to_; from} ->
-           (* I'm not sure if [Address.equal from dest] is the right thing to
-           do. *)
-           if Address.equal from dest && Address.equal to_ me then
-             Some msg
-           else
-             None))
+           Option.some_if (Address.equal from dest && Address.equal to_ me) msg))
     (fun ~me dest w ->
        Pipe.create_writer (fun r ->
            Pipe.transfer r (Layer_two.writer w) ~f:(fun msg ->
+               {Layer_two. msg; from = me; to_ = dest})))
+
+let layer_two_all_command =
+  make_port_command ~summary:"stdout/stdin via layer 2 frames"
+    ~param:Command.Param.(return ())
+    (fun ~me () r ->
+       Pipe.filter_map (Layer_two.reader r) ~f:(fun {msg; to_; from} ->
+           let data = String.to_list (Address.to_string from ^ ":") @ msg.data in
+           Option.some_if (Address.equal to_ me) {msg with data}))
+    (fun ~me () w ->
+       Pipe.create_writer (fun r ->
+           Pipe.transfer r (Layer_two.writer w) ~f:(fun (msg : Message.t) ->
+               let data = String.of_char_list msg.data in
+               let (dest, data) = String.lsplit2_exn data ~on:':' in
+               let data = String.to_list data in
+               let msg = {msg with data} in
+               let dest = Address.of_string dest in
                {Layer_two. msg; from = me; to_ = dest})))
 
 let switch_command =
@@ -92,10 +104,11 @@ let switch_command =
 
 let command =
   Command.group ~summary:"various client programs" [
-    ("layer-one",   layer_one_command   );
-    ("layer-two",   layer_two_command   );
-    ("switch",      switch_command);
-    ("passthrough", passthrough_command );
+    ("layer-one",        layer_one_command);
+    ("layer-two-direct", layer_two_direct_command);
+    ("layer-two-all",    layer_two_all_command);
+    ("switch",           switch_command);
+    ("passthrough",      passthrough_command);
   ]
 
 let () = Command.run command

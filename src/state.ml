@@ -105,7 +105,7 @@ let to_dot_format t =
         [sprintf !"    id=%{Node.Id};" node.id] @
         [         "    style=filled;"] @
         [         "    color=lightgrey;"] @
-        [sprintf !"    label = \"%{Node.Id}\"" node.id] @
+        [sprintf !"    label = \"%{Node.Id} (%{Address})\"" node.id node.address] @
         port_nodes @
         [         "  }"]
       )

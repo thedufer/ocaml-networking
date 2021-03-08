@@ -71,7 +71,7 @@ let start ~port state_ref messages =
       |> Deferred.ok
     | (`GET, ["main.css"]) ->
       Httpaf_caged.Server.respond_string
-        ~headers:(Httpaf.Headers.of_list [("content-type", "")])
+        ~headers:(Httpaf.Headers.of_list [("content-type", "text/css")])
         {|
         .message {
           font-family: monospace;

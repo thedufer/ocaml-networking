@@ -25,8 +25,26 @@ let start () =
   don't_wait_for (Pipe.iter_without_pushback messages ~f:(fun msg ->
       let msg = Message_log.t_of_sexp (Sexp.of_string msg) in
       let new_node = Dom_html.document##createElement (Js.string "div") in
+      new_node##.classList##add (Js.string "message");
+      let rendered_sent =
+        let printable =
+          List.map msg.sent ~f:(fun c ->
+              if Char.is_print c then c else '.')
+          |> String.of_char_list
+        in
+        let hex =
+          List.map msg.sent ~f:(fun c ->
+              let i = Char.to_int c in
+              sprintf "%02x" i)
+          |> List.chunks_of ~length:2
+          |> List.intersperse ~sep:[" "]
+          |> List.concat
+          |> String.concat
+        in
+        printable ^ "  " ^ hex
+      in
       let content =
-        sprintf !"%{Node.Id}#%d->%{Node.Id}#%d: %s" (fst msg.from) (snd msg.from) (fst msg.to_) (snd msg.to_) (String.of_char_list msg.sent)
+        sprintf !"%{Node.Id}#%d->%{Node.Id}#%d: %s" (fst msg.from) (snd msg.from) (fst msg.to_) (snd msg.to_) rendered_sent
       in
       new_node##.textContent := (Js.string content |> Js.Opt.return);
       Dom.appendChild container new_node));

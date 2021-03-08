@@ -24,6 +24,7 @@ let body = tag "body"
 let div  = tag "div"
 let img = tag "img"
 let script = tag "script"
+let link = tag "link"
 
 let src value = ("src", value)
 let alt value = ("alt", value)

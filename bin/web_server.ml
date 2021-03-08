@@ -69,6 +69,15 @@ let start ~port state_ref messages =
         ~headers:(Httpaf.Headers.of_list [("content-type", "text/javascript")])
         (Filename.dirname Sys.executable_name ^/ "web-client/main.bc.js")
       |> Deferred.ok
+    | (`GET, ["main.css"]) ->
+      Httpaf_caged.Server.respond_string
+        ~headers:(Httpaf.Headers.of_list [("content-type", "")])
+        {|
+        .message {
+          font-family: monospace;
+        }
+        |}
+      |> Deferred.ok
     | (`GET, [""]) ->
       let data = State.to_dot_format state in
       let%bind dot_proc = Async_unix.Process.create ~stdin:data ~prog:"dot" ~args:["-Tsvg"] () in
@@ -78,6 +87,7 @@ let start ~port state_ref messages =
         html [
           head [
             script ~attrs:[("src", "/main.js")] []
+          ; link ~attrs:[("rel", "stylesheet"); ("href", "/main.css")] []
           ]
         ; body [
             text "Here it is:";

@@ -82,9 +82,9 @@ let layer_two_all_command =
                let dest = Address.of_string dest in
                {Layer_two. msg; from = my_address; to_ = dest})))
 
-let switch_command =
+let hub_command =
   let open Command.Let_syntax in
-  Command.async_or_error ~summary:"start a switch"
+  Command.async_or_error ~summary:"start a hub"
     [%map_open
       let id = anon ("NODE-ID" %: string)
       in fun () ->
@@ -113,6 +113,6 @@ let command =
     ("layer-one",        layer_one_command);
     ("layer-two-direct", layer_two_direct_command);
     ("layer-two-all",    layer_two_all_command);
-    ("switch",           switch_command);
+    ("hub",              hub_command);
     ("passthrough",      passthrough_command);
   ]

@@ -27,7 +27,7 @@ end
 type t = {
   id : Id.t;
   ports : int;
-  address : Address.t;
+  address : Address.Node.t;
 } [@@deriving bin_io, sexp]
 
 let has_port t port =

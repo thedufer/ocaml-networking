@@ -28,7 +28,9 @@ let add_node t (id : Node.Id.t) ports =
   if has_node_with_id t id then
     Or_error.error_string "node with id already exists"
   else
-    let nodes = {Node. id; ports; address = Address.create () } :: t.nodes in
+    let nodes =
+      {Node. id; ports; address = Address.Node.create () } :: t.nodes
+    in
     Ok {t with nodes}
 
 let drop_node t (id : Node.Id.t) =
@@ -105,7 +107,7 @@ let to_dot_format t =
         [sprintf !"    id=%{Node.Id};" node.id] @
         [         "    style=filled;"] @
         [         "    color=lightgrey;"] @
-        [sprintf !"    label = \"%{Node.Id} (%{Address})\"" node.id node.address] @
+        [sprintf !"    label = \"%{Node.Id} (%{Address.Node})\"" node.id node.address] @
         port_nodes @
         [         "  }"]
       )

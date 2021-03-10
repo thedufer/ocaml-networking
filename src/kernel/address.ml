@@ -1,10 +1,41 @@
 open Core_kernel
 
-include Unique_id.Int63 ()
+module Node = struct
+  type t = int [@@deriving bin_io, compare, sexp]
 
-(* We number from 1, so it is very unlikely we'll get past the bounds of a
-   31-bit int. *)
-let of_int = of_int_exn
-let to_int = to_int_exn
+  let to_string = Int.to_string
 
-let arg_type = Command.Arg_type.map (Command.Param.int) ~f:of_int
+  let of_string = Int.of_string
+
+  (* TODO what about when it restarts and reads existing addresses? *)
+  let create =
+    let prev = ref (-1) in
+    fun () -> incr prev; !prev
+end
+
+module T = struct
+  type t =
+    { node : Node.t
+    ; port : int
+    } [@@deriving bin_io, compare]
+
+  let create node port = { node; port }
+                         
+  let of_string s =
+    let (node, port) = String.lsplit2_exn s ~on:':' in
+    { node = Node.of_string node; port = Int.of_string port }
+
+  let to_string { node; port } =
+    sprintf !"%{Node}:%d" node port
+end
+
+module T2 = struct
+  include T
+  include Sexpable.Of_stringable (T)
+end
+
+include T2
+include Comparable.Make (T2)
+
+
+let arg_type = Command.Arg_type.map Command.Param.string ~f:of_string

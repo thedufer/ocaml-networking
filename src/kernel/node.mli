@@ -11,7 +11,7 @@ end
 type t = {
   id : Id.t;
   ports : int;
-  address : Address.t;
+  address : Address.Node.t;
 } [@@deriving bin_io, sexp]
 
 val has_port : t -> int -> bool

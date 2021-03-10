@@ -42,8 +42,8 @@ include Comparable.Make (T2)
 let arg_type = Command.Arg_type.map Command.Param.string ~f:of_string
 
 let of_int64 i =
-  { node = Int64.(to_int_exn ((i lsr 16) lor 0xffffffffffffL))
-  ; port = Int64.(to_int_exn (i lor 0xffffL)) }
+  { node = Int64.(to_int_exn ((i lsr 16) land 0xffffffffffffL))
+  ; port = Int64.(to_int_exn (i land 0xffffL)) }
 
 let to_int64 { node; port } =
   Int64.(((of_int node) lsl 16) lor (of_int port))

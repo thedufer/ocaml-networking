@@ -1,6 +1,7 @@
 open! Core
 open! Async
 open Sdn_local_protocol_kernel
+open Deferred.Or_error.Let_syntax
 
 type t = {
   server_port : int;
@@ -17,7 +18,10 @@ let save t =
   Writer.save_sexp (location ()) sexp
   |> Deferred.ok
 
-let load () = Reader.load_sexp (location ()) t_of_sexp
+let load () =
+  let%bind t = Reader.load_sexp (location ()) t_of_sexp in
+  List.iter t.nodes ~f:(fun node -> Address.Node.record node.address);
+  return t
 
 open Or_error.Let_syntax
 

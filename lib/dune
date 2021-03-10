@@ -1,0 +1,6 @@
+(library
+ (name nodes_lib)
+ (libraries core async num sdn_local_protocol)
+ (inline_tests)
+ (preprocess
+  (pps ppx_jane)))

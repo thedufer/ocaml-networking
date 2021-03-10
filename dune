@@ -1,7 +1,7 @@
 (executables
  (modes byte exe)
  (names nodes)
- (libraries core async num sdn_local_protocol)
+ (libraries nodes_lib core)
  (preprocess
   (pps ppx_jane)))
 

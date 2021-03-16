@@ -11,14 +11,12 @@ type t = {
 let reader pipe =
   let (r, w) = Pipe.create () in
   Pipe.transfer (Layer_one.reader pipe) w ~f:(fun (msg : Message.t) ->
-      print_s [%sexp (msg : Message.t)];
       let (to_bytes,   data) = List.split_n msg.data 8 in
       let (from_bytes, data) = List.split_n data     8 in
       let to_  = Bytes_.to_int64 to_bytes   ~num_bytes:8 |> Address.of_int64 in
       let from = Bytes_.to_int64 from_bytes ~num_bytes:8 |> Address.of_int64 in
       let msg = {msg with data} in
       let t = {msg; to_; from} in
-      print_s [%sexp (t : t)];
       t)
   |> don't_wait_for;
   r

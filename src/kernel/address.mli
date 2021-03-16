@@ -12,6 +12,7 @@ end
 type t [@@deriving bin_io, compare, sexp]
 
 include Comparable with type t := t
+include Hashable with type t := t
 include Stringable with type t := t
 
 val create : Node.t -> int -> t

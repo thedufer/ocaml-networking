@@ -1,7 +1,7 @@
 open Core_kernel
 
 module Node = struct
-  type t = int [@@deriving bin_io, compare, sexp]
+  type t = int [@@deriving bin_io, compare, hash, sexp]
 
   let to_string = Int.to_string
   let of_string = Int.of_string
@@ -16,7 +16,7 @@ module T = struct
   type t =
     { node : Node.t
     ; port : int
-    } [@@deriving bin_io, compare]
+    } [@@deriving bin_io, compare, hash]
 
   let create node port =
     if port > 0xffff then
@@ -38,6 +38,7 @@ end
 
 include T2
 include Comparable.Make (T2)
+include Hashable.Make (T2)
 
 let arg_type = Command.Arg_type.map Command.Param.string ~f:of_string
 

@@ -90,21 +90,7 @@ let hub_command =
       in fun () ->
         let open Deferred.Or_error.Let_syntax in
         let%bind (r, w, _me, ports) = Helper.connect (Node.Id.of_string id) in
-        let r = Layer_two.reader r in
-        let w = Layer_two.writer w in
-        let r =
-          Pipe.map' r ~f:(fun q ->
-              List.concat_map (Queue.to_list q) ~f:(fun msg ->
-                  List.init ports ~f:(fun port ->
-                      if Int.equal msg.msg.port port then
-                        None
-                      else
-                        Some {msg with msg = {msg.msg with port}})
-                  |> List.filter_opt)
-              |> Queue.of_list
-              |> Deferred.return)
-        in
-        Pipe.transfer_id r w
+        Layer_two.hub r w ~ports
         |> Deferred.ok
     ]
 
@@ -116,27 +102,7 @@ let switch_command =
       in fun () ->
         let open Deferred.Or_error.Let_syntax in
         let%bind (r, w, _me, ports) = Helper.connect (Node.Id.of_string id) in
-        let r = Layer_two.reader r in
-        let w = Layer_two.writer w in
-        (* TODO cache eviction? *)
-        let map = Address.Table.create () in
-        let r =
-          Pipe.map' r ~f:(fun q ->
-              List.concat_map (Queue.to_list q) ~f:(fun msg ->
-                  Hashtbl.set map ~key:msg.from ~data:msg.msg.port;
-                  match Hashtbl.find map msg.to_ with
-                  | Some port -> [{msg with msg = {msg.msg with port = port}}]
-                  | None ->
-                    List.init ports ~f:(fun port ->
-                        if Int.equal msg.msg.port port then
-                          None
-                        else
-                          Some {msg with msg = {msg.msg with port}})
-                    |> List.filter_opt)
-              |> Queue.of_list
-              |> Deferred.return)
-        in
-        Pipe.transfer_id r w
+        Layer_two.switch r w ~ports ~expiration:Time.Span.minute
         |> Deferred.ok
     ]
 

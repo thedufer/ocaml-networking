@@ -22,3 +22,16 @@ type t = {
 val reader : Message.t Pipe.Reader.t -> t Pipe.Reader.t
 
 val writer : Message.t Pipe.Writer.t -> t Pipe.Writer.t
+
+val hub
+  :  Message.t Pipe.Reader.t
+  -> Message.t Pipe.Writer.t
+  -> ports:int
+  -> unit Deferred.t
+
+val switch
+  :  Message.t Pipe.Reader.t
+  -> Message.t Pipe.Writer.t
+  -> ports:int
+  -> expiration:Time.Span.t
+  -> unit Deferred.t

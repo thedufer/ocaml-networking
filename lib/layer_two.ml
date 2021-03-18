@@ -34,3 +34,49 @@ let writer pipe =
       {msg with data})
   |> don't_wait_for;
   w
+
+let hub r w ~ports =
+  let r = reader r in
+  let w = writer w in
+  let r =
+    Pipe.map' r ~f:(fun q ->
+        List.concat_map (Queue.to_list q) ~f:(fun msg ->
+            List.init ports ~f:(fun port ->
+                if Int.equal msg.msg.port port then
+                  None
+                else
+                  Some {msg with msg = {msg.msg with port}})
+            |> List.filter_opt)
+        |> Queue.of_list
+        |> Deferred.return)
+  in
+  Pipe.transfer_id r w
+
+let switch r w ~ports ~expiration =
+  let r = reader r in
+  let w = writer w in
+  let map = Address.Table.create () in
+  let is_expired t =
+    Time.is_earlier t ~than:(Time.sub (Time.now ()) expiration)
+  in
+  Clock.every expiration (fun () ->
+      Hashtbl.filter_inplace map ~f:(fun (_, t) ->
+          not (is_expired t)));
+  let r =
+    Pipe.map' r ~f:(fun q ->
+        List.concat_map (Queue.to_list q) ~f:(fun msg ->
+            Hashtbl.set map ~key:msg.from ~data:(msg.msg.port, Time.now ());
+            match Hashtbl.find map msg.to_ with
+            | Some (port, t) when not (is_expired t) ->
+              [{msg with msg = {msg.msg with port = port}}]
+            | Some _ | None ->
+              List.init ports ~f:(fun port ->
+                  if Int.equal msg.msg.port port then
+                    None
+                  else
+                    Some {msg with msg = {msg.msg with port}})
+              |> List.filter_opt)
+        |> Queue.of_list
+        |> Deferred.return)
+  in
+  Pipe.transfer_id r w

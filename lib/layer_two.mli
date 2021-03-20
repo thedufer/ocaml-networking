@@ -35,3 +35,10 @@ val switch
   -> ports:int
   -> expiration:Time.Span.t
   -> unit Deferred.t
+
+val stp_switch
+  :  Message.t Pipe.Reader.t
+  -> Message.t Pipe.Writer.t
+  -> ports:int
+  -> me:Address.Node.t
+  -> unit Deferred.t

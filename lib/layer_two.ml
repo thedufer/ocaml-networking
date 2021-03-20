@@ -80,3 +80,91 @@ let switch r w ~ports ~expiration =
         |> Deferred.return)
   in
   Pipe.transfer_id r w
+
+module Stp = struct
+  type state =
+    | Listening of { until : Time.t }
+    | Forwarding of [`Root | `Designated | `Blocked] Int.Map.t
+
+  type t =
+    { mutable root_id : Address.t
+    ; mutable root_distance : int
+    ; mutable root_direction : int option
+    ; mutable state : state
+    }
+
+  let address = Address.of_int64 0x01_00_00_00_00_00_00_00L
+
+  let listening_length = Time.Span.of_sec 15.
+
+  module Message = struct
+    type t =
+      { root_id : Address.t
+      ; root_distance : int
+      }
+
+    let to_bytes {root_id; root_distance} =
+      List.concat
+        [ Address.to_int64 root_id |> Bytes_.of_int64 ~num_bytes:8
+        ; Bytes_.of_int root_distance ~num_bytes:2
+        ]
+
+    let of_bytes bytes =
+      let root_id, rest = List.split_n bytes 8 in
+      let root_distance, rest = List.split_n rest 2 in
+      assert (List.is_empty rest);
+      { root_id = Bytes_.to_int64 root_id ~num_bytes:8 |> Address.of_int64
+      ; root_distance = Bytes_.to_int root_distance ~num_bytes:2
+      }
+  end
+
+  let handle_message t (msg : Sdn_local_protocol.Message.t) =
+    let parsed = Message.of_bytes msg.data in
+    if Address.(parsed.root_id < t.root_id) then
+      (t.root_id <- parsed.root_id;
+       t.root_distance <- parsed.root_distance + 1;
+       t.root_direction <- Some msg.port;
+       t.state <-
+         match t.state with
+         | Listening _ | Forwarding _ ->
+           Listening { until = Time.add (Time.now ()) listening_length }
+      );
+    if Address.equal parsed.root_id t.root_id &&
+       parsed.root_distance + 1 < t.root_distance then
+      (t.root_distance <- parsed.root_distance + 1;
+       t.root_direction <- Some msg.port)
+end
+
+let stp_switch r w ~ports ~me =
+  let r = reader r in
+  let w = writer w in
+  let t =
+    { Stp.root_id = Address.create me 0xffff
+    ; root_distance= 0
+    ; root_direction=None
+    ; state = Listening { until = Time.add (Time.now ()) Stp.listening_length }
+    }
+  in
+  let write = Pipe.write_without_pushback w in
+  let send_control_packet () =
+    List.init ports ~f:Fn.id
+    |> List.iter ~f:(fun port ->
+        let data =
+          Stp.Message.to_bytes
+            { root_id = t.root_id
+            ; root_distance = t.root_distance
+            }
+        in
+        write
+          { to_ = Stp.address
+          ; from = Address.create me port
+          ; msg = {port;data}
+          })
+  in
+  Clock.every (Time.Span.of_sec 2.) send_control_packet;
+  Pipe.iter r ~f:(fun msg ->
+      if Address.equal msg.to_ Stp.address then
+        (Stp.handle_message t msg.msg;
+         return ())
+      else
+        return ())

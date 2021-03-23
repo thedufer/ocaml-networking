@@ -101,28 +101,23 @@ let drop_connection t connection =
     Or_error.error_string "connection already exists"
 
 let to_dot_format t =
-  let subgraphs =
+  let nodes =
     List.concat_map t.nodes ~f:(fun node ->
-        let port_nodes =
-          List.init node.ports ~f:(fun port ->
-              sprintf !"    %{Node.Id}%d [label=\"%d\" id=\"%{Node.Id}-%d\"];" node.id port port node.id port)
-        in
-        [sprintf !"  subgraph cluster_%{Node.Id} {" node.id] @
-        [sprintf !"    id=%{Node.Id};" node.id] @
-        [         "    style=filled;"] @
-        [         "    color=lightgrey;"] @
+        [sprintf !"  %{Node.Id} [" node.id] @
+        [sprintf !"    id=%{Node.Id}" node.id] @
+        [         "    style=filled"] @
+        [         "    color=lightgrey"] @
         [sprintf !"    label = \"%{Node.Id} (%{Address.Node})\"" node.id node.address] @
-        port_nodes @
-        [         "  }"]
+        [         "  ];"]
       )
   in
   let edges =
     List.map t.connections
       ~f:(fun {id = {node1; port1; node2; port2} as id; transformations = _; extra_bits = _} ->
-          sprintf !"  %{Node.Id}%d -- %{Node.Id}%d [id=\"%s\"];" node1 port1 node2 port2 (Connection.Id.to_html_id id))
+          sprintf !"  %{Node.Id} -- %{Node.Id} [id=\"%s\" taillabel=\"%d\" headlabel=\"%d\"];" node1 node2 (Connection.Id.to_html_id id) port1 port2)
   in
   String.concat ~sep:"\n" @@
   ["graph network {"] @
-  subgraphs @
+  nodes @
   edges @
   ["}"]

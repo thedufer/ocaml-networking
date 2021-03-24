@@ -52,22 +52,22 @@ let hub r w ~ports =
   in
   Pipe.transfer_id r w
 
+let is_expired ~expiration time =
+  Time.is_earlier time ~than:(Time.sub (Time.now ()) expiration)
+
 let switch r w ~ports ~expiration =
   let r = reader r in
   let w = writer w in
   let map = Address.Table.create () in
-  let is_expired t =
-    Time.is_earlier t ~than:(Time.sub (Time.now ()) expiration)
-  in
   Clock.every expiration (fun () ->
       Hashtbl.filter_inplace map ~f:(fun (_, t) ->
-          not (is_expired t)));
+          not (is_expired ~expiration t)));
   let r =
     Pipe.map' r ~f:(fun q ->
         List.concat_map (Queue.to_list q) ~f:(fun msg ->
             Hashtbl.set map ~key:msg.from ~data:(msg.msg.port, Time.now ());
             match Hashtbl.find map msg.to_ with
-            | Some (port, t) when not (is_expired t) ->
+            | Some (port, t) when not (is_expired ~expiration t) ->
               [{msg with msg = {msg.msg with port = port}}]
             | Some _ | None ->
               List.init ports ~f:(fun port ->
@@ -84,18 +84,23 @@ let switch r w ~ports ~expiration =
 module Stp = struct
   type state =
     | Listening of { until : Time.t }
-    | Forwarding of [`Root | `Designated | `Blocked] Int.Map.t
+    | Forwarding
 
   type t =
-    { mutable root_id : Address.t
+    { me : Address.t
+    ; mutable root_id : Address.t
     ; mutable root_distance : int
-    ; mutable root_direction : int option
+    ; mutable root_port : int option
     ; mutable state : state
+    ; has_messaged_this_root : (Time.t * int) Int.Table.t
+    ; routing : (int * Time.t) Address.Table.t
     }
 
   let address = Address.of_int64 0x01_00_00_00_00_00_00_00L
 
   let listening_length = Time.Span.of_sec 15.
+  let message_timeout = Time.Span.of_sec 15.
+  let expiration = Time.Span.of_sec 15.
 
   module Message = struct
     type t =
@@ -118,53 +123,128 @@ module Stp = struct
       }
   end
 
+  let new_root t id distance port =
+    t.root_id <- id;
+    t.root_distance <- distance;
+    t.root_port <- port;
+    t.state <- Listening { until = Time.add (Time.now ()) listening_length };
+    Hashtbl.clear t.has_messaged_this_root
+
+  let ping t =
+    let should_send_message = ref false in
+    let now = Time.now () in
+    Hashtbl.filter_inplace t.routing ~f:(fun (_, t) ->
+        not (is_expired ~expiration t));
+    t.state <-
+      (match t.state with
+       | Forwarding -> Forwarding
+       | Listening { until } when Time.is_earlier until ~than:now ->
+         print_endline "transitioning to forwarding state";
+         Forwarding
+       | Listening _ as s -> s);
+    Hashtbl.filter_inplace t.has_messaged_this_root ~f:(fun (time, _) ->
+        Time.is_later (Time.add time message_timeout) ~than:now);
+    (match t.root_port with
+     | None -> ()
+     | Some root_direction ->
+       if not (Hashtbl.mem t.has_messaged_this_root root_direction) then
+         (should_send_message := true;
+          (* our path to the root is dead; reconfigure *)
+          match
+            Hashtbl.to_alist t.has_messaged_this_root
+            |> List.min_elt ~compare:(Comparable.lift Int.compare ~f:fst)
+          with
+          | Some (direction, (_time, root_distance)) ->
+            print_endline "picking new path to root";
+            (* this is our new best path *)
+            t.root_distance <- root_distance;
+            t.root_port <- Some direction
+          | None ->
+            print_endline "assigning ourself root";
+            (* no known path to root; change root to us and go through a new
+               listening phase *)
+            new_root t t.me 0 None));
+    !should_send_message
+
   let handle_message t (msg : Sdn_local_protocol.Message.t) =
+    let should_send_message = ref (ping t) in
     let parsed = Message.of_bytes msg.data in
     if Address.(parsed.root_id < t.root_id) then
-      (t.root_id <- parsed.root_id;
-       t.root_distance <- parsed.root_distance + 1;
-       t.root_direction <- Some msg.port;
-       t.state <-
-         match t.state with
-         | Listening _ | Forwarding _ ->
-           Listening { until = Time.add (Time.now ()) listening_length }
-      );
+      (print_s [%message "promoting root"
+           ~from:(t.root_id : Address.t)
+           ~to_:(parsed.root_id : Address.t)];
+       should_send_message := true;
+       new_root t parsed.root_id (parsed.root_distance + 1) (Some msg.port));
     if Address.equal parsed.root_id t.root_id &&
        parsed.root_distance + 1 < t.root_distance then
-      (t.root_distance <- parsed.root_distance + 1;
-       t.root_direction <- Some msg.port)
+      (print_s [%message "found new best path"
+           ~from:(t.root_port : int option)
+           ~to_:(msg.port : int)];
+        should_send_message := true;
+       t.root_distance <- parsed.root_distance + 1;
+       t.root_port <- Some msg.port);
+    if Address.equal parsed.root_id t.root_id then
+      Hashtbl.set t.has_messaged_this_root ~key:msg.port ~data:(Time.now (), parsed.root_distance + 1);
+    !should_send_message
 end
 
 let stp_switch r w ~ports ~me =
   let r = reader r in
   let w = writer w in
+  let me_full_addr = Address.create me 0xffff in
   let t =
-    { Stp.root_id = Address.create me 0xffff
-    ; root_distance= 0
-    ; root_direction=None
+    { Stp.me = me_full_addr
+    ; root_id = me_full_addr
+    ; root_distance = 0
+    ; root_port = None
     ; state = Listening { until = Time.add (Time.now ()) Stp.listening_length }
+    ; has_messaged_this_root = Int.Table.create ()
+    ; routing = Address.Table.create ()
     }
   in
   let write = Pipe.write_without_pushback w in
   let send_control_packet () =
     List.init ports ~f:Fn.id
     |> List.iter ~f:(fun port ->
-        let data =
-          Stp.Message.to_bytes
-            { root_id = t.root_id
-            ; root_distance = t.root_distance
-            }
-        in
-        write
-          { to_ = Stp.address
-          ; from = Address.create me port
-          ; msg = {port;data}
-          })
+        (* Don't send these back towards the current root *)
+        if not ([%equal: int option] (Some port) t.root_port) then
+          let data =
+            Stp.Message.to_bytes
+              { root_id = t.root_id
+              ; root_distance = t.root_distance
+              }
+          in
+          write
+            { to_ = Stp.address
+            ; from = Address.create me port
+            ; msg = {port;data}
+            })
   in
-  Clock.every (Time.Span.of_sec 2.) send_control_packet;
+  Clock.every (Time.Span.of_sec 2.) (fun () ->
+      ignore (Stp.ping t : bool);
+      send_control_packet ());
   Pipe.iter r ~f:(fun msg ->
       if Address.equal msg.to_ Stp.address then
-        (Stp.handle_message t msg.msg;
-         return ())
+        (if Stp.handle_message t msg.msg then send_control_packet ())
       else
-        return ())
+        (if Stp.ping t then send_control_packet ();
+         Hashtbl.set t.routing ~key:msg.from ~data:(msg.msg.port, Time.now ());
+         match t.state with
+         | Listening _ -> ()
+         | Forwarding ->
+           match Hashtbl.find t.routing msg.to_ with
+           | Some (port, t) when not (is_expired ~expiration:Stp.expiration t) ->
+             write {msg with msg = {msg.msg with port = port}}
+           | Some _ | None ->
+             List.init ports ~f:(fun port ->
+                 if Int.equal msg.msg.port port then
+                   (* don't send it where it came from *)
+                   None
+                 else if Hashtbl.mem t.has_messaged_this_root port &&
+                         not ([%equal: int option] t.root_port (Some port)) then
+                   None
+                 else
+                   Some {msg with msg = {msg.msg with port}})
+             |> List.filter_opt
+             |> List.iter ~f:write);
+      return ())

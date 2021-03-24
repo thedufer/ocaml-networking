@@ -106,6 +106,18 @@ let switch_command =
         |> Deferred.ok
     ]
 
+let stp_switch_command =
+  let open Command.Let_syntax in
+  Command.async_or_error ~summary:"start a switch"
+    [%map_open
+      let id = anon ("NODE-ID" %: string)
+      in fun () ->
+        let open Deferred.Or_error.Let_syntax in
+        let%bind (r, w, me, ports) = Helper.connect (Node.Id.of_string id) in
+        Layer_two.stp_switch r w ~ports ~me
+        |> Deferred.ok
+    ]
+
 let command =
   Command.group ~summary:"various client programs" [
     ("layer-one",        layer_one_command);
@@ -113,5 +125,6 @@ let command =
     ("layer-two-all",    layer_two_all_command);
     ("hub",              hub_command);
     ("switch",           switch_command);
+    ("stp-switch",       stp_switch_command);
     ("passthrough",      passthrough_command);
   ]

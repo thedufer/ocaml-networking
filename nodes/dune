@@ -1,0 +1,11 @@
+(executables
+ (modes byte exe)
+ (names nodes)
+ (libraries nodes_lib core)
+ (preprocess
+  (pps ppx_jane)))
+
+(install
+ (section bin)
+ (files
+  (nodes.exe as sdn-apps)))
